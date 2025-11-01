@@ -79,11 +79,14 @@ export async function fetchAndSetCurrentUser(uid) {
                 // Start listening to the employee's logs
                 listenToUserLogs(uid);
                 
+                let targetView = 'kiosk'; // Default to KIOSK view
+
                 if (userData.isAdmin) {
                     listenToAllData();
+                    targetView = 'admin_dashboard'; // Explicitly set Admin view
                 }
 
-                navigateTo('kiosk');
+                navigateTo(targetView); // Navigate to the correct view
                 renderUI();
                 success = true;
                 break; // Exit loop on success
