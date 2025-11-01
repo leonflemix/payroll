@@ -6,9 +6,10 @@ import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-
 
 import { state, setDb, setAuth } from './state.js';
 import { firebaseConfig, timecards_employees_path, timecards_logs_path, timecards_audit_logs_path } from './constants.js';
-import { renderUI, navigateTo } from './uiRender.js';
+import { renderUI } from './uiRender.js';
 import { stopCamera } from './utils.js';
 import { setMessage } from './utils.js';
+import { navigateTo } from './kioskLogic.js'; // FIX: Importing navigateTo directly from its defining module
 
 let app;
 
