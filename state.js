@@ -1,37 +1,46 @@
 // Filename: state.js
-// Centralized application state
+
+/*
+|--------------------------------------------------------------------------
+| 1. APPLICATION STATE
+|--------------------------------------------------------------------------
+| Central mutable object to hold application state, including Firebase instances
+| and user data. This is imported by all modules.
+*/
+
 export const state = {
-    // Firebase objects
+    // Firebase Instances (set after initialization)
     db: null,
     auth: null,
-
-    // Auth status
-    isAuthReady: false,
-    currentUser: null, // Full user object from employees collection
     
-    // UI status
-    loading: true,
-    view: 'login', // 'login', 'kiosk', 'admin_dashboard'
-    message: null, // { text: '...', type: 'success' | 'error' }
-    isClocking: false, // Prevents multiple clock actions
-
-    // Data stores
-    employees: [], // All employee documents
-    allLogs: [], // All time logs for admin use
-    logs: [], // Current user's recent logs (max 5)
-    auditLogs: [], // Recent audit logs (max 10)
-
-    // Admin Filters
-    filterStartDate: null,
-    filterEndDate: null,
-    filterEmployeeUid: 'all',
-
-    // Camera
-    videoStream: null,
+    // Auth and User Data
+    isAuthReady: false,
+    currentUser: null, // Full employee document of the logged-in user
+    
+    // UI State
+    currentView: 'login_view',
+    
+    // Data Caches
+    allEmployees: {},
+    allLogs: [],
+    auditLogs: []
 };
 
-// Setters for Firebase objects
-export function setDb(dbInstance) { state.db = dbInstance; }
-export function setAuth(authInstance) { state.auth = authInstance; }
+/*
+|--------------------------------------------------------------------------
+| 2. STATE SETTERS
+|--------------------------------------------------------------------------
+| Functions to safely update the state object.
+*/
 
-// NOTE: db and auth are accessed via the imported 'state' object.
+export function setAppState(key, value) {
+    state[key] = value;
+}
+
+export function setDb(dbInstance) {
+    state.db = dbInstance;
+}
+
+export function setAuth(authInstance) {
+    state.auth = authInstance;
+}

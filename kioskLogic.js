@@ -1,7 +1,7 @@
 // Filename: kioskLogic.js
 import { state, setAppState } from './state.js';
 import { setStatusMessage, setAuthMessage } from './uiRender.js';
-import { ADMIN_EMAIL, ENABLE_CAMERA, timecards_logs_path, timecards_employees_path } from './constants.js';
+import { ENABLE_CAMERA, timecards_logs_path, timecards_employees_path } from './constants.js';
 import { addDoc, collection, doc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { startCamera, stopCamera, captureImage } from './utils.js';
@@ -13,11 +13,14 @@ import { startCamera, stopCamera, captureImage } from './utils.js';
 */
 
 export function navigateTo(viewName) {
-    if (viewName === 'kiosk' && state.currentUser.isAdmin) {
+    if (viewName === 'kiosk' && state.currentUser && state.currentUser.isAdmin) {
         viewName = 'admin_dashboard';
     }
 
-    if (viewName === 'kiosk' && state.currentUser.cameraEnabled) {
+    // Camera control based on per-employee setting AND global constant
+    const cameraShouldStart = viewName === 'kiosk' && state.currentUser && state.currentUser.cameraEnabled && ENABLE_CAMERA;
+    
+    if (cameraShouldStart) {
         startCamera();
     } else {
         stopCamera();
@@ -88,6 +91,7 @@ export async function handleClockAction() {
     const nextStatus = currentStatus === 'in' ? 'out' : 'in';
     let photoData = null;
 
+    // Check both employee preference AND global constant
     if (state.currentUser.cameraEnabled && ENABLE_CAMERA) {
         try {
             photoData = captureImage();

@@ -6,7 +6,6 @@
 |--------------------------------------------------------------------------
 */
 
-// CRITICAL: This must be exported for the firebase.js module to read it.
 export const FIREBASE_CONFIG = {
     apiKey: "AIzaSyDkNNCV_5D9TpW3vhY2oTbnpGVCtlZC5n8",
     authDomain: "payroll-52d0b.firebaseapp.com",
@@ -21,11 +20,8 @@ export const FIREBASE_CONFIG = {
 |--------------------------------------------------------------------------
 | 2. FIREBASE PATHS
 |--------------------------------------------------------------------------
-| The path structure is defined by the canvas environment.
-| {__app_id} is payroll-52d0b.
 */
 
-// Public paths require the appId for isolation
 const appId = FIREBASE_CONFIG.projectId; 
 const BASE_PATH = `artifacts/${appId}/public/data`;
 

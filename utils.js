@@ -1,142 +1,115 @@
 // Filename: utils.js
 import { state } from './state.js';
-import { ENABLE_CAMERA, timecards_audit_logs_path } from './constants.js';
-import { collection, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { renderUI } from './uiRender.js'; 
+import { timecards_audit_logs_path } from './constants.js';
+import { addDoc, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 /*
 |--------------------------------------------------------------------------
-| GENERAL UTILITIES
+| 1. DATE & TIME UTILITIES
 |--------------------------------------------------------------------------
 */
 
-export function setMessage(text, type = 'success') {
-    state.message = { text, type };
-    renderUI();
-    setTimeout(() => {
-        state.message = null;
-        renderUI();
-    }, 5000);
+export function formatTime(timestamp) {
+    if (!timestamp || typeof timestamp.toDate !== 'function') return 'N/A';
+    return timestamp.toDate().toLocaleTimeString();
 }
 
-export function formatTimestamp(timestamp, includeDate = true) {
-    if (!timestamp) return 'N/A';
-    const date = typeof timestamp.toDate === 'function' ? timestamp.toDate() : new Date(timestamp);
-    const timePart = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    if (!includeDate) return timePart;
-    return date.toLocaleDateString() + ' ' + timePart;
+export function formatDate(timestamp) {
+    if (!timestamp || typeof timestamp.toDate !== 'function') return 'N/A';
+    return timestamp.toDate().toLocaleDateString();
 }
 
-export function toDatetimeLocal(timestamp) {
-    if (!timestamp) return '';
-    const date = typeof timestamp.toDate === 'function' ? timestamp.toDate() : new Date(timestamp);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
+export function getDateTimeInput(timestamp) {
+    if (!timestamp || typeof timestamp.toDate !== 'function') return { date: '', time: '' };
+    const date = timestamp.toDate();
+    const YYYY = date.getFullYear();
+    const MM = String(date.getMonth() + 1).padStart(2, '0');
+    const DD = String(date.getDate()).padStart(2, '0');
+    const HH = String(date.getHours()).padStart(2, '0');
+    const mm = String(date.getMinutes()).padStart(2, '0');
+    const ss = String(date.getSeconds()).padStart(2, '0');
+    return {
+        date: `${YYYY}-${MM}-${DD}`,
+        time: `${HH}:${mm}:${ss}`
+    };
 }
 
-/**
- * Returns a unique week key (YYYY-WW) based on the ISO week date standard.
- */
-export function getWeekNumber(d) {
-    d = new Date(d); // Clone the date to prevent modification
-    d.setHours(0, 0, 0, 0);
-    // Thursday in current week decides the year.
-    d.setDate(d.getDate() + 3 - (d.getDay() || 7));
-    // January 4 is always in week 1.
-    const week1 = new Date(d.getFullYear(), 0, 4);
-    // Adjust to Thursday and get days in between.
-    const weekNo = 1 + Math.ceil((((d - week1) / 86400000) - 3 + (week1.getDay() || 7)) / 7);
-    return d.getFullYear() + '-' + String(weekNo).padStart(2, '0');
-}
+/*
+|--------------------------------------------------------------------------
+| 2. CAMERA/PHOTO UTILITIES
+|--------------------------------------------------------------------------
+*/
 
-export function downloadCSV(content, filename) {
-    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    if (link.download !== undefined) {
-        const url = URL.createObjectURL(blob);
-        link.setAttribute("href", url);
-        link.setAttribute("download", filename);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    } else {
-        setMessage("Your browser does not support downloading files.", 'error');
-    }
-}
+const video = document.getElementById('webcam-feed');
+const canvas = document.getElementById('photo-canvas');
 
-// Function to write audit logs
-export async function writeAuditLog(action, targetLogId, oldData, newData = null) {
-    if (!state.currentUser || !state.currentUser.isAdmin) return; 
+export function startCamera() {
+    if (!navigator.mediaDevices) return; // Cannot start camera without media devices API
 
-    try {
-        const auditRef = collection(state.db, timecards_audit_logs_path); // FIX: Use state.db
-        await addDoc(auditRef, {
-            timestamp: new Date(),
-            adminUid: state.currentUser.uid,
-            adminEmail: state.currentUser.email,
-            action: action, // 'EDIT' or 'DELETE'
-            targetLogId: targetLogId,
-            oldData: oldData, // Full log data before change
-            newData: newData, // New data after change (only for EDIT)
+    navigator.mediaDevices.getUserMedia({ video: true })
+        .then(stream => {
+            if (video) {
+                video.srcObject = stream;
+                video.play();
+                document.getElementById('camera-section').classList.remove('hidden');
+            }
+        })
+        .catch(err => {
+            console.warn("Camera access denied or failed:", err);
+            // Hide the camera section if access is denied
+            document.getElementById('camera-section').classList.add('hidden');
         });
-    } catch (error) {
-        console.error("Failed to write audit log:", error);
-    }
-}
-
-/*
-|--------------------------------------------------------------------------
-| CAMERA FUNCTIONS
-|--------------------------------------------------------------------------
-*/
-
-export async function startCamera() {
-    const video = document.getElementById('video-feed');
-    if (!video) return;
-
-    // Check both global master switch and user's setting
-    if (!ENABLE_CAMERA || !state.currentUser.cameraEnabled) {
-        document.getElementById('camera-status').textContent = 'Camera disabled for this user by admin.';
-        return;
-    }
-
-    if (state.videoStream) stopCamera();
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 400, height: 300 } });
-        state.videoStream = stream;
-        video.srcObject = stream;
-        video.play();
-        document.getElementById('camera-status').textContent = 'Camera ready';
-    } catch (err) {
-        console.error("Error accessing camera:", err);
-        document.getElementById('camera-status').textContent = 'Camera blocked or unavailable.';
-    }
 }
 
 export function stopCamera() {
-    if (state.videoStream) {
-        state.videoStream.getTracks().forEach(track => track.stop());
-        state.videoStream = null;
+    if (video && video.srcObject) {
+        video.srcObject.getTracks().forEach(track => track.stop());
+    }
+    // Ensure camera section is hidden when not in kiosk view
+    if (document.getElementById('camera-section')) {
+        document.getElementById('camera-section').classList.add('hidden');
     }
 }
 
-export function capturePhoto() {
-    if (!ENABLE_CAMERA || !state.currentUser.cameraEnabled) return '';
-    
-    const video = document.getElementById('video-feed');
-    if (!video || !state.videoStream) return null;
-    
-    const canvas = document.createElement('canvas');
+export function captureImage() {
+    if (!video || !canvas) return null;
+
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    const context = canvas.getContext('2d');
-    context.translate(canvas.width, 0);
-    context.scale(-1, 1);
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    // Convert canvas image to Base64 data URL
     return canvas.toDataURL('image/png');
+}
+
+/*
+|--------------------------------------------------------------------------
+| 3. AUDIT LOGGING
+|--------------------------------------------------------------------------
+*/
+
+/**
+ * Writes an administrative action to the audit log collection.
+ * @param {string} action - e.g., 'EDIT_LOG', 'DELETE_EMPLOYEE', 'ADD_EMPLOYEE'
+ * @param {string} target - Employee name or log ID being acted upon.
+ * @param {object} details - Details of the change (e.g., old/new values).
+ */
+export async function writeAuditLog(action, target, details = {}) {
+    if (!state.db || !state.currentUser) return;
+
+    try {
+        const logEntry = {
+            timestamp: new Date(),
+            adminUid: state.currentUser.uid,
+            adminName: state.currentUser.name || 'Admin User',
+            action: action,
+            target: target,
+            details: JSON.stringify(details)
+        };
+        await addDoc(collection(state.db, timecards_audit_logs_path), logEntry);
+    } catch (error) {
+        console.error("Failed to write audit log:", error);
+    }
 }

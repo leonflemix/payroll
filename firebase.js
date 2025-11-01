@@ -1,69 +1,59 @@
 // Filename: firebase.js
-import { state, setDb, setAuth, setCurrentUser, setUserLogs, setEmployees, setAllLogs, setAuditLogs, setLoading, setMessage } from './state.js';
 import { FIREBASE_CONFIG, timecards_employees_path, timecards_logs_path, timecards_audit_logs_path } from './constants.js';
+import { state, setAuth, setDb, setAppState } from './state.js';
 import { navigateTo } from './kioskLogic.js';
-import { renderUI } from './uiRender.js';
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { renderUI, renderEmployeeList, renderTimeLogList, renderAuditLogList } from './uiRender.js';
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { getFirestore, doc, getDoc, collection, query, where, onSnapshot, limit, updateDoc, orderBy, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { getFirestore, doc, getDoc, collection, query, onSnapshot, orderBy, where, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 /*
 |--------------------------------------------------------------------------
-| 1. FIREBASE INITIALIZATION
+| 1. INITIALIZATION & AUTHENTICATION SETUP
 |--------------------------------------------------------------------------
 */
 
 export function initFirebase() {
     try {
         const app = initializeApp(FIREBASE_CONFIG);
-        const authInstance = getAuth(app);
         const dbInstance = getFirestore(app);
+        const authInstance = getAuth(app);
 
-        setAuth(authInstance);
         setDb(dbInstance);
+        setAuth(authInstance);
 
-        // This listener tracks login/logout state changes
-        onAuthStateChanged(state.auth, async (user) => {
+        // Set up the primary authentication listener
+        onAuthStateChanged(state.auth, (user) => {
             if (user) {
-                // User is signed in, fetch their details and start listeners
-                await fetchAndSetCurrentUser(user.uid);
-                listenToAllEmployees();
-                listenToUserLogs(user.uid);
-                listenToAllLogs(); // Needed for Admin Dashboard Log Table
-                listenToAuditLogs(); // Needed for Admin Dashboard Audit Table
-                
-                // Navigate based on admin status
-                if (state.currentUser.isAdmin) {
-                    navigateTo('admin_dashboard');
-                } else {
-                    navigateTo('kiosk');
-                }
-
+                // User is signed in
+                setAppState('isAuthReady', true);
+                fetchAndSetCurrentUser(user.uid);
             } else {
                 // User is signed out
-                setCurrentUser({});
-                setUserLogs([]);
-                setEmployees([]);
-                setAllLogs([]);
-                setAuditLogs([]);
-                navigateTo('login');
+                setAppState('isAuthReady', true);
+                setAppState('currentUser', null);
+                navigateTo('login_view');
+                renderUI(); 
             }
-            renderUI();
         });
 
     } catch (error) {
-        console.error("Firebase Initialization Failed:", error);
-        setMessage(`Critical error: ${error.message}`, 'error');
+        console.error("Firebase initialization failed:", error);
     }
 }
-window.initFirebase = initFirebase; // Expose globally for main.js
 
 /*
 |--------------------------------------------------------------------------
-| 2. USER/DATA FETCHING
+| 2. USER DATA FETCHING
 |--------------------------------------------------------------------------
 */
 
+/**
+ * Fetches the user's employee document and sets it as the currentUser state.
+ * Initiates data listeners if successful.
+ * @param {string} uid - Firebase User UID
+ */
 export async function fetchAndSetCurrentUser(uid) {
     if (!state.db) return;
 
@@ -72,144 +62,162 @@ export async function fetchAndSetCurrentUser(uid) {
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
-            setCurrentUser({ id: docSnap.id, ...docSnap.data(), uid: uid }); // Added uid here for consistency
-            setMessage(`Welcome back, ${state.currentUser.name}!`, 'success');
+            const userData = { uid: docSnap.id, ...docSnap.data() };
+            setAppState('currentUser', userData);
+            
+            // Start listening to the employee's logs
+            listenToUserLogs(uid);
+            
+            if (userData.isAdmin) {
+                listenToAllData();
+            }
+
+            navigateTo('kiosk');
+            renderUI();
+
         } else {
-            // User exists in Auth but not in Employees collection (Should only happen if manually deleted)
-            setMessage('User profile data missing. Access Denied.', 'error');
+            // User authenticated but no employee profile found (e.g., new admin created outside signup)
+            console.warn(`Employee document not found for UID: ${uid}. Logging out.`);
             await state.auth.signOut();
         }
 
     } catch (error) {
-        console.error("Error fetching current user data:", error);
-        setMessage('Error fetching profile data.', 'error');
+        console.error("Error fetching user data:", error);
+        navigateTo('login_view');
+        renderUI();
     }
 }
 
 /*
 |--------------------------------------------------------------------------
-| 3. REAL-TIME LISTENERS
+| 3. DATA LISTENERS (REAL-TIME UPDATES)
 |--------------------------------------------------------------------------
 */
 
-// Listener for all employee records (used by Kiosk and Admin)
-function listenToAllEmployees() {
-    if (!state.db) return;
-    const employeesRef = collection(state.db, timecards_employees_path);
+let unsubscribeUserLogs = () => {};
+let unsubscribeAllData = () => {};
+let unsubscribeAuditLogs = () => {};
 
-    onSnapshot(employeesRef, (snapshot) => {
-        const employeesList = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        }));
-        setEmployees(employeesList);
-        // Important: Update the current user object with the latest state if it exists
-        if (state.currentUser.uid) {
-             const latestUser = employeesList.find(e => e.uid === state.currentUser.uid);
-             if (latestUser) setCurrentUser(latestUser);
-        }
-        renderUI();
-    }, (error) => {
-        console.error("Employee listener failed:", error);
-        setMessage("Real-time employee data failed to load.", 'error');
-    });
-}
-
-// Listener for the current user's last 5 logs (for Kiosk dashboard)
+/**
+ * Attaches real-time listener for the currently logged-in user's logs (for kiosk view).
+ * @param {string} uid 
+ */
 function listenToUserLogs(uid) {
-    if (!state.db || !uid) return;
-    const logsRef = collection(state.db, timecards_logs_path);
-    
-    // Query: Filter by UID, order by timestamp descending, limit to 5
-    const q = query(logsRef, where('employeeUid', '==', uid), orderBy('timestamp', 'desc'), limit(5));
+    // Stop previous listener if it exists
+    unsubscribeUserLogs(); 
 
-    onSnapshot(q, (snapshot) => {
-        const logsList = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        }));
-        setUserLogs(logsList);
-        renderUI();
-    }, (error) => {
-        console.error("User logs listener failed:", error);
-    });
-}
-
-// Listener for all time logs (for Admin dashboard)
-function listenToAllLogs() {
     if (!state.db) return;
-    const logsRef = collection(state.db, timecards_logs_path);
-    
-    // Order by timestamp ascending (needed for payroll calculation)
-    const q = query(logsRef, orderBy('timestamp', 'asc')); 
 
-    onSnapshot(q, (snapshot) => {
-        const logsList = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        }));
-        setAllLogs(logsList);
-        renderUI();
+    const logsQuery = query(
+        collection(state.db, timecards_logs_path),
+        where("employeeUid", "==", uid),
+        orderBy("timestamp", "desc")
+    );
+
+    unsubscribeUserLogs = onSnapshot(logsQuery, (snapshot) => {
+        const userLogs = [];
+        snapshot.forEach((doc) => {
+            userLogs.push({ id: doc.id, ...doc.data() });
+        });
+        setAppState('currentUserLogs', userLogs.slice(0, 5));
+        renderUI(); // Re-render the kiosk view
     }, (error) => {
-        console.error("All logs listener failed:", error);
+        console.error("Error listening to user logs:", error);
     });
 }
 
-// Listener for audit logs (for Admin dashboard)
-function listenToAuditLogs() {
+/**
+ * Attaches real-time listener for ALL employees, ALL logs, and ALL audit logs (for admin view).
+ */
+function listenToAllData() {
+    // Stop previous listeners if they exist
+    unsubscribeAllData();
+    unsubscribeAuditLogs();
+
     if (!state.db) return;
-    const logsRef = collection(state.db, timecards_audit_logs_path);
-    
-    // Order by timestamp descending, limit to 10 for quick display
-    const q = query(logsRef, orderBy('timestamp', 'desc'), limit(10)); 
 
-    onSnapshot(q, (snapshot) => {
-        const auditList = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        }));
-        setAuditLogs(auditList);
-        renderUI();
+    // 1. Employee Listener
+    const employeesQuery = query(collection(state.db, timecards_employees_path));
+    const employeesUnsubscribe = onSnapshot(employeesQuery, (snapshot) => {
+        const employeesMap = {};
+        snapshot.forEach((doc) => {
+            employeesMap[doc.id] = { uid: doc.id, ...doc.data() };
+        });
+        setAppState('allEmployees', employeesMap);
+        renderEmployeeList(); // Renders employee table on change
+        renderTimeLogList(); // Renders log filter dropdowns
     }, (error) => {
-        console.error("Audit logs listener failed:", error);
+        console.error("Error listening to all employees:", error);
     });
-}
 
+    // 2. All Logs Listener
+    const logsQuery = query(collection(state.db, timecards_logs_path), orderBy("timestamp", "desc"));
+    const logsUnsubscribe = onSnapshot(logsQuery, (snapshot) => {
+        const logs = [];
+        snapshot.forEach((doc) => {
+            logs.push({ id: doc.id, ...doc.data() });
+        });
+        setAppState('allLogs', logs);
+        renderTimeLogList(); // Renders log table on change
+    }, (error) => {
+        console.error("Error listening to all logs:", error);
+    });
+
+    // 3. Audit Logs Listener
+    const auditQuery = query(collection(state.db, timecards_audit_logs_path), orderBy("timestamp", "desc"));
+    const auditUnsubscribe = onSnapshot(auditQuery, (snapshot) => {
+        const logs = [];
+        snapshot.forEach((doc) => {
+            logs.push({ id: doc.id, ...doc.data() });
+        });
+        setAppState('auditLogs', logs);
+        renderAuditLogList(); // Renders audit table on change
+    }, (error) => {
+        console.error("Error listening to audit logs:", error);
+    });
+
+    // Combine unsubscribes for easy cleanup on logout
+    unsubscribeAllData = () => {
+        employeesUnsubscribe();
+        logsUnsubscribe();
+    };
+    unsubscribeAuditLogs = auditUnsubscribe;
+}
 
 /*
 |--------------------------------------------------------------------------
-| 4. EMPLOYEE STATUS SYNC (Used by Admin CRUD)
+| 4. STATUS SYNC UTILITY
 |--------------------------------------------------------------------------
 */
 
-// Recalculates and updates an employee's status based on their latest log entry.
+/**
+ * Recalculates and updates an employee's status after an admin log edit/delete.
+ * @param {string} employeeUid 
+ */
 export async function updateEmployeeStatusAfterLogEdit(employeeUid) {
     if (!state.db) return;
-    try {
-        const logsRef = collection(state.db, timecards_logs_path);
-        // Query for the *single* latest log entry for the specified user
-        const q = query(
-            logsRef,
-            where('employeeUid', '==', employeeUid),
-            orderBy('timestamp', 'desc'),
-            limit(1)
-        );
-        const snapshot = await getDocs(q);
 
-        let newStatus = 'out'; // Default to 'out'
+    try {
+        // Query for the single most recent log entry for the specified user
+        const logsQuery = query(
+            collection(state.db, timecards_logs_path),
+            where("employeeUid", "==", employeeUid),
+            orderBy("timestamp", "desc")
+        );
+        
+        const snapshot = await getDocs(logsQuery);
+        let newStatus = 'out'; // Default status if no logs are found
+
         if (!snapshot.empty) {
             const latestLog = snapshot.docs[0].data();
-            newStatus = latestLog.type; // Should be 'in' or 'out'
+            newStatus = latestLog.type;
         }
 
-        // Update the employee's status field
+        // Update the employee's status in the database
         const employeeDocRef = doc(state.db, timecards_employees_path, employeeUid);
-        await updateDoc(employeeDocRef, {
-            status: newStatus
-        });
+        await updateDoc(employeeDocRef, { status: newStatus });
 
     } catch (error) {
-        console.error("Failed to update employee status after edit:", error);
-        setMessage("Warning: Could not sync employee status.", 'warning');
+        console.error("Failed to update employee status after log edit:", error);
     }
 }
