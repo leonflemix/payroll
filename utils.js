@@ -99,6 +99,54 @@ export function base64ToArrayBuffer(base64) {
 */
 
 /**
+ * Calculates the total time, regular time, and overtime for a single shift.
+ * Applies break deduction and daily overtime rules based on employee settings.
+ * @param {Object} logEntry - Paired in/out log entry.
+ * @param {Object} employee - The employee's settings (maxDailyHours, breakDeductionMins).
+ * @returns {{totalHours: number, regularHours: number, dailyOT: number, weeklyOT: number}}
+ */
+export function calculateShiftTime(logEntry, employee) {
+    if (!logEntry.timeIn || !logEntry.timeOut) {
+        return { totalHours: 0, regularHours: 0, dailyOT: 0, weeklyOT: 0 };
+    }
+
+    const timeIn = logEntry.timeIn.toDate().getTime();
+    const timeOut = logEntry.timeOut.toDate().getTime();
+    
+    // Total duration in milliseconds
+    let durationMs = timeOut - timeIn;
+    if (durationMs < 0) durationMs = 0; // Should not happen
+
+    let totalHours = durationMs / (1000 * 60 * 60);
+
+    // Apply Break Deduction Logic
+    const breakTriggerHours = 6;
+    if (totalHours > breakTriggerHours) {
+        // Deduction is applied only if the shift exceeds the trigger threshold
+        totalHours -= (employee.breakDeductionMins / 60);
+    }
+
+    const maxDailyHours = employee.maxDailyHours || 8;
+    let regularHours = totalHours;
+    let dailyOT = 0;
+    
+    // Daily Overtime Calculation
+    if (totalHours > maxDailyHours) {
+        dailyOT = totalHours - maxDailyHours;
+        regularHours = maxDailyHours;
+    }
+
+    // Weekly OT is calculated in the adminCrud.js, so we leave it at 0 here.
+    return {
+        totalHours: totalHours,
+        regularHours: regularHours,
+        dailyOT: dailyOT,
+        weeklyOT: 0
+    };
+}
+
+
+/**
  * Formats a Firebase Timestamp object into a readable date and time string.
  * Used for displaying recent activity and audit logs.
  * @param {Object} timestamp - Firebase Timestamp object.
