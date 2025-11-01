@@ -6,7 +6,7 @@ import { updateDoc, doc, collection, addDoc } from "https://www.gstatic.com/fire
 import { setMessage, capturePhoto, stopCamera, startCamera } from './utils.js';
 import { fetchAndSetCurrentUser } from './firebase.js';
 import { renderUI } from './uiRender.js';
-import { timecards_logs_path, timecards_employees_path } from './constants.js';
+import { timecards_logs_path, timecards_employees_path, ADMIN_EMAIL } from './constants.js'; // Added ADMIN_EMAIL import
 
 export async function navigateTo(newView) {
     if (newView === 'login') {
