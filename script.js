@@ -35,7 +35,7 @@ const firebaseConfig = FIREBASE_CONFIG;
 
 // App Constants
 const ADMIN_EMAIL = 'admin@kiosk.com';
-// ADMIN_PIN removed. Admin must be created manually and status granted via Firestore 'employees' collection.
+// ADMIN access is determined by the 'isAdmin: true' field in the user's Firestore document.
 const EMPLOYEE_COLLECTION_NAME = 'employees';
 const LOG_COLLECTION_NAME = 'logs';
 const AUDIT_COLLECTION_NAME = 'audit_logs'; 
@@ -54,11 +54,7 @@ const BREAK_DEDUCTION_MINUTES = 30; // 30 minutes unpaid break
 // ** FLAG: Set to true to enable photo captures **
 const ENABLE_CAMERA = false; 
 
-// Mock Employee Data (for initial setup)
-const MOCK_EMPLOYEES = [
-    { name: 'Alice Smith', email: 'alice@kiosk.com', password: 'password1' },
-    { name: 'Bob Johnson', email: 'bob@kiosk.com', password: 'password2' },
-];
+// Mock Employee Data removed, relying on manual creation.
 
 
 /*
@@ -235,9 +231,8 @@ async function initFirebase() {
         db = getFirestore(app);
         auth = getAuth(app);
 
-        // *** FIX: Run initial setup synchronously immediately after auth object is created ***
-        // This ensures mock accounts are created before the main auth state listener fires.
-        await setupInitialData(); 
+        // Mock data setup removed. App relies on manual user creation.
+        // await setupInitialData(); 
 
         onAuthStateChanged(auth, async (user) => {
             if (user) {
@@ -276,55 +271,8 @@ async function fetchAndSetCurrentUser(uid) {
     }
 }
 
-let hasInitialDataRun = false;
+// setupInitialData function removed
 
-async function setupInitialData() {
-    if (hasInitialDataRun) return; // Prevent double execution
-    hasInitialDataRun = true;
-
-    const employeesRef = collection(db, timecards_employees_path);
-
-    try {
-        const initialCheckQuery = query(employeesRef);
-        const querySnapshot = await getDocs(initialCheckQuery);
-
-        if (querySnapshot.empty) {
-            console.log("Setting up initial mock employee data...");
-
-            // 1. Setup Mock Employees
-            for (const emp of MOCK_EMPLOYEES) {
-                try {
-                    const userCredential = await createUserWithEmailAndPassword(auth, emp.email, emp.password);
-                    const uid = userCredential.user.uid;
-                    await setDoc(doc(db, timecards_employees_path, uid), { 
-                        uid, 
-                        email: emp.email, 
-                        name: emp.name, 
-                        status: 'out',
-                        isAdmin: false 
-                    });
-                } catch (e) {
-                    if (e.code !== 'auth/email-already-in-use') {
-                         console.error("Mock user setup failed:", e);
-                    }
-                }
-            }
-
-            // 2. Setup Admin account - REMOVED HARDCODED CREATION
-            // Admin must be manually created in Auth/Firestore.
-
-            setMessage("Initial employee data loaded.", 'success');
-        }
-    } catch (error) {
-        if (error.code === 'unavailable') {
-            setMessage("Cannot verify initial data. Retrying database connection...", 'error');
-            console.error("Firebase is offline or unavailable. Retrying initialization logic on next connection.", error);
-        } else {
-            console.error("Critical error during initial data setup:", error);
-            setMessage("Critical error during setup. Check console.", 'error');
-        }
-    }
-}
 
 function listenToEmployees() {
     const employeesRef = collection(db, timecards_employees_path);
@@ -926,7 +874,7 @@ function closePhotoModal() {
     document.getElementById('photo-modal').classList.add('hidden');
     document.getElementById('modal-photo').src = '';
 }
-window.closePhotoModal = closePhotoModal;
+window.closePhotoModal = closeLogModal;
 
 
 /*
