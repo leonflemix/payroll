@@ -88,6 +88,9 @@ export async function fetchAndSetCurrentUser(uid) {
                 listenToUserLogs(uid);
             }
 
+            // Add small delay (100ms) to stabilize view rendering after async fetch
+            await delay(100); 
+
             navigateTo(targetView); // Navigate to the correct view
             renderUI();
 
