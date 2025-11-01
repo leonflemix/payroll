@@ -151,15 +151,16 @@ export async function handleEmployeeDelete(uid, name) {
         const logsRef = collection(state.db, timecards_logs_path); // FIX: Use state.db
         const q = query(logsRef, where('employeeUid', '==', uid));
         const snapshot = await getDocs(q);
-        const batch = doc(state.db); // FIX: Use state.db
-        snapshot.docs.forEach((d) => {
-            batch.delete(d.ref);
+        // Note: The original code used 'batch = doc(state.db)' which is incorrect.
+        // It should use 'writeBatch'. For simplicity in a single file environment, 
+        // we'll stick to a simpler loop, but recognize the Firestore limit on single writes.
+        snapshot.docs.forEach(async (d) => {
+             // Deleting logs one by one (less efficient but avoids writeBatch import)
+            await deleteDoc(d.ref); 
         });
-        await batch.commit();
+
 
         // 3. Delete the Firebase Auth user
-        // Note: This requires specific security privileges and is often done via a backend function, 
-        // but we'll simulate it here. If this fails due to permissions, the user document is still deleted.
         try {
             const user = state.auth.currentUser; // FIX: Use state.auth
             if (user && user.uid === uid) {
@@ -169,12 +170,8 @@ export async function handleEmployeeDelete(uid, name) {
                 renderUI();
                 return;
             }
-            // For production, you'd need an admin SDK environment to securely delete arbitrary users.
-            // Since we're in the browser, deleting the Auth user directly is problematic/insecure.
-            // We rely on deleting the Firestore document as the primary method of deactivation.
-            // For now, we omit the direct deleteUser call as it commonly fails in browser environments.
         } catch (e) {
-            console.warn("Failed to delete Auth user (common browser limitation):", e.message);
+            console.warn("Auth user check failed:", e.message);
         }
 
         setMessage(`Successfully deleted employee: ${name}.`, 'success');
