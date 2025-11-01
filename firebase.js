@@ -122,6 +122,9 @@ function listenToUserLogs(uid) {
 
     if (!state.db) return;
 
+    // Diagnostic logging for the collection path
+    console.log(`[DEBUG]: Attempting to listen to user logs at path: ${timecards_logs_path}`);
+
     const logsQuery = query(
         collection(state.db, timecards_logs_path),
         where("employeeUid", "==", uid),
@@ -153,6 +156,7 @@ function listenToAllData() {
     const adminUid = state.currentUser ? state.currentUser.uid : 'UNKNOWN';
 
     // 1. Employee Listener
+    console.log(`[DEBUG]: Attempting to listen to ALL employees at path: ${timecards_employees_path}`);
     const employeesQuery = query(collection(state.db, timecards_employees_path));
     const employeesUnsubscribe = onSnapshot(employeesQuery, (snapshot) => {
         setAppState('adminError', null); // Clear error on successful load
@@ -171,6 +175,7 @@ function listenToAllData() {
     });
 
     // 2. All Logs Listener
+    console.log(`[DEBUG]: Attempting to listen to ALL logs at path: ${timecards_logs_path}`);
     const logsQuery = query(collection(state.db, timecards_logs_path), orderBy("timestamp", "desc"));
     const logsUnsubscribe = onSnapshot(logsQuery, (snapshot) => {
         setAppState('adminError', null); // Clear error on successful load
@@ -188,6 +193,7 @@ function listenToAllData() {
     });
 
     // 3. Audit Logs Listener
+    console.log(`[DEBUG]: Attempting to listen to ALL audit logs at path: ${timecards_audit_logs_path}`);
     const auditQuery = query(collection(state.db, timecards_audit_logs_path), orderBy("timestamp", "desc"));
     const auditUnsubscribe = onSnapshot(auditQuery, (snapshot) => {
         setAppState('adminError', null); // Clear error on successful load
