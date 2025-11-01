@@ -1,5 +1,5 @@
 // Filename: utils.js
-import { state, db } from './state.js';
+import { state } from './state.js';
 import { ENABLE_CAMERA, timecards_audit_logs_path } from './constants.js';
 import { collection, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { renderUI } from './uiRender.js'; 
@@ -74,7 +74,7 @@ export async function writeAuditLog(action, targetLogId, oldData, newData = null
     if (!state.currentUser || !state.currentUser.isAdmin) return; 
 
     try {
-        const auditRef = collection(db, timecards_audit_logs_path);
+        const auditRef = collection(state.db, timecards_audit_logs_path); // FIX: Use state.db
         await addDoc(auditRef, {
             timestamp: new Date(),
             adminUid: state.currentUser.uid,
