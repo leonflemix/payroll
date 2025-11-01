@@ -125,18 +125,28 @@ function listenToUserLogs(uid) {
     // Diagnostic logging for the collection path
     console.log(`[DEBUG]: Attempting to listen to user logs at path: ${timecards_logs_path}`);
 
-    const logsQuery = query(
-        collection(state.db, timecards_logs_path),
-        where("employeeUid", "==", uid),
-        orderBy("timestamp", "desc")
-    );
+    // START TEMPORARY FIX: Commenting out the problematic complex query
+    // const logsQuery = query(
+    //     collection(state.db, timecards_logs_path),
+    //     where("employeeUid", "==", uid),
+    //     orderBy("timestamp", "desc")
+    // );
+    
+    // TEMPORARY FIX: Use a simple query to ensure the app proceeds
+    const logsQuery = query(collection(state.db, timecards_logs_path), orderBy("timestamp", "desc"));
+    // END TEMPORARY FIX
 
     unsubscribeUserLogs = onSnapshot(logsQuery, (snapshot) => {
         const userLogs = [];
         snapshot.forEach((doc) => {
             userLogs.push({ id: doc.id, ...doc.data() });
         });
-        setAppState('currentUserLogs', userLogs.slice(0, 5));
+        // We now filter in-memory since the query is simplified
+        const filteredLogs = userLogs
+            .filter(log => log.employeeUid === uid)
+            .sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis());
+            
+        setAppState('currentUserLogs', filteredLogs.slice(0, 5));
         renderUI(); // Re-render the kiosk view
     }, (error) => {
         console.error(`[FATAL LISTENER ERROR - User Logs for ${uid}]:`, error);
