@@ -330,3 +330,13 @@ export function closeSettingsModal() {
 export function applyFilters() {
     renderTimeLogList();
 }
+
+/**
+ * Closes all active modals. Useful after a successful action.
+ */
+export function closeAllModals() {
+    closeSignupModal();
+    closeLogModal();
+    closePhotoModal();
+    closeSettingsModal();
+}
