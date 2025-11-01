@@ -73,6 +73,9 @@ export async function fetchAndSetCurrentUser(uid) {
             const userData = { uid: docSnap.id, ...docSnap.data() };
             setAppState('currentUser', userData);
             
+            // Clear any previous Admin error
+            setAppState('adminError', null); 
+            
             // Start listening to the employee's logs
             listenToUserLogs(uid);
             
@@ -152,6 +155,7 @@ function listenToAllData() {
     // 1. Employee Listener
     const employeesQuery = query(collection(state.db, timecards_employees_path));
     const employeesUnsubscribe = onSnapshot(employeesQuery, (snapshot) => {
+        setAppState('adminError', null); // Clear error on successful load
         const employeesMap = {};
         snapshot.forEach((doc) => {
             employeesMap[doc.id] = { uid: doc.id, ...doc.data() };
@@ -159,40 +163,45 @@ function listenToAllData() {
         setAppState('allEmployees', employeesMap);
         renderEmployeeList(); // Renders employee table on change
         renderTimeLogList(); // Renders log filter dropdowns
-    }, async (error) => {
-        console.error(`[FATAL ADMIN LISTENER ERROR - Employees for ${adminUid}]:`, error);
-        // Security or Index error on core employee data - force logout
-        await state.auth.signOut();
+    }, (error) => {
+        console.error(`[CRITICAL ADMIN LISTENER FAILURE - Employees]:`, error);
+        // DO NOT LOG OUT. Set error state to display to the admin.
+        setAppState('adminError', `Employee Data Load Failed: ${error.message}`);
+        renderUI();
     });
 
     // 2. All Logs Listener
     const logsQuery = query(collection(state.db, timecards_logs_path), orderBy("timestamp", "desc"));
     const logsUnsubscribe = onSnapshot(logsQuery, (snapshot) => {
+        setAppState('adminError', null); // Clear error on successful load
         const logs = [];
         snapshot.forEach((doc) => {
             logs.push({ id: doc.id, ...doc.data() });
         });
         setAppState('allLogs', logs);
         renderTimeLogList(); // Re-renders log table on change
-    }, async (error) => {
-        console.error(`[FATAL ADMIN LISTENER ERROR - All Logs for ${adminUid}]:`, error);
-        // Security or Index error on time logs - force logout
-        await state.auth.signOut();
+    }, (error) => {
+        console.error(`[CRITICAL ADMIN LISTENER FAILURE - All Logs]:`, error);
+        // DO NOT LOG OUT. Set error state to display to the admin.
+        setAppState('adminError', `Time Log Load Failed: ${error.message}`);
+        renderUI();
     });
 
     // 3. Audit Logs Listener
     const auditQuery = query(collection(state.db, timecards_audit_logs_path), orderBy("timestamp", "desc"));
     const auditUnsubscribe = onSnapshot(auditQuery, (snapshot) => {
+        setAppState('adminError', null); // Clear error on successful load
         const logs = [];
         snapshot.forEach((doc) => {
             logs.push({ id: doc.id, ...doc.data() });
         });
         setAppState('auditLogs', logs);
         renderAuditLogList(); // Renders audit table on change
-    }, async (error) => {
-        console.error(`[FATAL ADMIN LISTENER ERROR - Audit Logs for ${adminUid}]:`, error);
-        // Security or Index error on audit logs - force logout
-        await state.auth.signOut();
+    }, (error) => {
+        console.error(`[CRITICAL ADMIN LISTENER FAILURE - Audit Logs]:`, error);
+        // DO NOT LOG OUT. Set error state to display to the admin.
+        setAppState('adminError', `Audit Log Load Failed: ${error.message}`);
+        renderUI();
     });
 
     // Combine unsubscribes for easy cleanup on logout
