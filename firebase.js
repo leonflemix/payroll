@@ -88,8 +88,7 @@ export async function fetchAndSetCurrentUser(uid) {
 
         } else {
             // --- CRITICAL FAILURE: DOCUMENT MISSING ---
-            // If the document doesn't exist, we must log out.
-            console.error(`CRITICAL ERROR: User profile document missing for Auth UID: ${uid}. Manual Firestore document creation is required.`);
+            console.error(`CRITICAL ERROR: User profile document missing for Auth UID: ${uid}. Logging out.`);
             await state.auth.signOut();
         }
 
@@ -134,7 +133,8 @@ function listenToUserLogs(uid) {
         setAppState('currentUserLogs', userLogs.slice(0, 5));
         renderUI(); // Re-render the kiosk view
     }, (error) => {
-        console.error("Error listening to user logs:", error);
+        console.error(`[FATAL LISTENER ERROR - User Logs for ${uid}]:`, error);
+        // Do NOT log out here, as this is just the current user's log failure, not a critical app failure.
     });
 }
 
@@ -147,6 +147,7 @@ function listenToAllData() {
     unsubscribeAuditLogs();
 
     if (!state.db) return;
+    const adminUid = state.currentUser ? state.currentUser.uid : 'UNKNOWN';
 
     // 1. Employee Listener
     const employeesQuery = query(collection(state.db, timecards_employees_path));
@@ -158,8 +159,10 @@ function listenToAllData() {
         setAppState('allEmployees', employeesMap);
         renderEmployeeList(); // Renders employee table on change
         renderTimeLogList(); // Renders log filter dropdowns
-    }, (error) => {
-        console.error("Error listening to all employees:", error);
+    }, async (error) => {
+        console.error(`[FATAL ADMIN LISTENER ERROR - Employees for ${adminUid}]:`, error);
+        // Security or Index error on core employee data - force logout
+        await state.auth.signOut();
     });
 
     // 2. All Logs Listener
@@ -170,9 +173,11 @@ function listenToAllData() {
             logs.push({ id: doc.id, ...doc.data() });
         });
         setAppState('allLogs', logs);
-        renderTimeLogList(); // Renders log table on change
-    }, (error) => {
-        console.error("Error listening to all logs:", error);
+        renderTimeLogList(); // Re-renders log table on change
+    }, async (error) => {
+        console.error(`[FATAL ADMIN LISTENER ERROR - All Logs for ${adminUid}]:`, error);
+        // Security or Index error on time logs - force logout
+        await state.auth.signOut();
     });
 
     // 3. Audit Logs Listener
@@ -184,8 +189,10 @@ function listenToAllData() {
         });
         setAppState('auditLogs', logs);
         renderAuditLogList(); // Renders audit table on change
-    }, (error) => {
-        console.error("Error listening to audit logs:", error);
+    }, async (error) => {
+        console.error(`[FATAL ADMIN LISTENER ERROR - Audit Logs for ${adminUid}]:`, error);
+        // Security or Index error on audit logs - force logout
+        await state.auth.signOut();
     });
 
     // Combine unsubscribes for easy cleanup on logout
