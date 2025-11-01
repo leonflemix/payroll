@@ -236,18 +236,28 @@ export async function updateEmployeeStatusAfterLogEdit(employeeUid) {
 
     try {
         // Query for the single most recent log entry for the specified user
+        // TEMPORARY FIX: Removed orderBy and where clause to rely on client-side sorting for stability
+        // NOTE: This is INEFFICIENT but necessary to bypass the blocking index error during testing.
         const logsQuery = query(
-            collection(state.db, timecards_logs_path),
-            where("employeeUid", "==", employeeUid),
-            orderBy("timestamp", "desc")
+            collection(state.db, timecards_logs_path)
+            // Removed orderBy("timestamp", "desc") and where("employeeUid", "==", employeeUid)
         );
         
         const snapshot = await getDocs(logsQuery);
         let newStatus = 'out'; // Default status if no logs are found
 
         if (!snapshot.empty) {
-            const latestLog = snapshot.docs[0].data();
-            newStatus = latestLog.type;
+            // Filter and sort client-side
+            const allLogs = snapshot.docs.map(doc => doc.data());
+            
+            const employeeLogs = allLogs
+                .filter(log => log.employeeUid === employeeUid)
+                .sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis());
+
+            if (employeeLogs.length > 0) {
+                 const latestLog = employeeLogs[0];
+                 newStatus = latestLog.type;
+            }
         }
 
         // Update the employee's status in the database
