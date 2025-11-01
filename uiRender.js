@@ -1,6 +1,6 @@
 // Filename: uiRender.js
 import { state } from './state.js';
-import { updateEmployee, deleteEmployee, handleLogSave, handleLogDelete, generatePayrollReport, toggleSignupModal, toggleLogModal, toggleSettingsModal, applyFilters } from './adminCrud.js';
+import { updateEmployee, deleteEmployee, handleLogSave, handleLogDelete, generatePayrollReport, toggleSignupModal, toggleLogModal, toggleSettingsModal } from './adminCrud.js';
 import { handleClockAction, handleLogin } from './kioskLogic.js';
 import { formatTimestamp, calculateShiftTime, formatTime, formatTotalHours, pcmToWav, base64ToArrayBuffer } from './utils.js';
 
