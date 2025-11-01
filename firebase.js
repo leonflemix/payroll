@@ -58,58 +58,44 @@ function delay(ms) {
 
 /**
  * Fetches the user's employee document and sets it as the currentUser state.
- * Initiates data listeners if successful. Includes a retry mechanism for robustness.
+ * Initiates data listeners if successful.
  * @param {string} uid - Firebase User UID
  */
 export async function fetchAndSetCurrentUser(uid) {
     if (!state.db) return;
-    const MAX_RETRIES = 3;
-    let success = false;
-    let lastError = null;
+    
+    try {
+        const docRef = doc(state.db, timecards_employees_path, uid);
+        const docSnap = await getDoc(docRef);
 
-    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-        try {
-            const docRef = doc(state.db, timecards_employees_path, uid);
-            const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+            // --- SUCCESS ---
+            const userData = { uid: docSnap.id, ...docSnap.data() };
+            setAppState('currentUser', userData);
+            
+            // Start listening to the employee's logs
+            listenToUserLogs(uid);
+            
+            let targetView = 'kiosk'; // Default to KIOSK view
 
-            if (docSnap.exists()) {
-                const userData = { uid: docSnap.id, ...docSnap.data() };
-                setAppState('currentUser', userData);
-                
-                // Start listening to the employee's logs
-                listenToUserLogs(uid);
-                
-                let targetView = 'kiosk'; // Default to KIOSK view
-
-                if (userData.isAdmin) {
-                    listenToAllData();
-                    targetView = 'admin_dashboard'; // Explicitly set Admin view
-                }
-
-                navigateTo(targetView); // Navigate to the correct view
-                renderUI();
-                success = true;
-                break; // Exit loop on success
-
-            } else {
-                console.warn(`[Attempt ${attempt + 1}] Employee document not found for UID: ${uid}. Retrying...`);
-                lastError = `Employee document missing.`;
+            if (userData.isAdmin) {
+                listenToAllData();
+                targetView = 'admin_dashboard'; // Explicitly set Admin view
             }
 
-        } catch (error) {
-            console.error(`[Attempt ${attempt + 1}] Error fetching user data:`, error);
-            lastError = error.message;
+            navigateTo(targetView); // Navigate to the correct view
+            renderUI();
+
+        } else {
+            // --- CRITICAL FAILURE: DOCUMENT MISSING ---
+            // If the document doesn't exist, we must log out.
+            console.error(`CRITICAL ERROR: User profile document missing for Auth UID: ${uid}. Manual Firestore document creation is required.`);
+            await state.auth.signOut();
         }
 
-        if (!success && attempt < MAX_RETRIES - 1) {
-            // Wait with exponential backoff before next retry
-            await delay(500 * (attempt + 1));
-        }
-    }
-
-    if (!success) {
-        // If all retries fail, log out and inform the user
-        console.error(`Failed to fetch user profile after ${MAX_RETRIES} attempts. Logging out. Last error: ${lastError}`);
+    } catch (error) {
+        // --- FATAL ERROR: Permissions, Network, or other Firestore issue ---
+        console.error("Fatal error fetching user data, logging out:", error);
         await state.auth.signOut();
     }
 }
