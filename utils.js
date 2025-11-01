@@ -4,7 +4,7 @@ import { renderUI } from './uiRender.js';
 
 /*
 |--------------------------------------------------------------------------
-| 1. CAMERA AND MEDIA UTILITIES
+| 1. CAMERA AND MEDIA UTILITIES (Exported)
 |--------------------------------------------------------------------------
 */
 
@@ -74,6 +74,22 @@ export function takePhoto(videoElement) {
         console.error("Photo capture failed:", error);
         return null;
     }
+}
+
+/**
+ * Converts a Base64 string (without the MIME prefix) into an ArrayBuffer.
+ * This is used to decode the captured photo data for display.
+ * @param {string} base64 - Base64 string of the image.
+ * @returns {ArrayBuffer}
+ */
+export function base64ToArrayBuffer(base64) {
+    const binaryString = atob(base64.split(',')[1] || base64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes.buffer;
 }
 
 /*
