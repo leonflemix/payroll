@@ -125,23 +125,16 @@ function listenToUserLogs(uid) {
     // Diagnostic logging for the collection path
     console.log(`[DEBUG]: Attempting to listen to user logs at path: ${timecards_logs_path}`);
 
-    // START TEMPORARY FIX: Commenting out the problematic complex query
-    // const logsQuery = query(
-    //     collection(state.db, timecards_logs_path),
-    //     where("employeeUid", "==", uid),
-    //     orderBy("timestamp", "desc")
-    // );
-    
-    // TEMPORARY FIX: Use a simple query to ensure the app proceeds
-    const logsQuery = query(collection(state.db, timecards_logs_path), orderBy("timestamp", "desc"));
-    // END TEMPORARY FIX
+    // TEMPORARY FIX: We use a simplified query to ensure the app proceeds by removing the complex orderBy
+    const logsQuery = query(collection(state.db, timecards_logs_path));
+    // NOTE: This will fetch ALL logs and rely on client-side filtering/sorting below.
 
     unsubscribeUserLogs = onSnapshot(logsQuery, (snapshot) => {
         const userLogs = [];
         snapshot.forEach((doc) => {
             userLogs.push({ id: doc.id, ...doc.data() });
         });
-        // We now filter in-memory since the query is simplified
+        // We now filter and sort in-memory since the query is simplified
         const filteredLogs = userLogs
             .filter(log => log.employeeUid === uid)
             .sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis());
@@ -165,7 +158,7 @@ function listenToAllData() {
     if (!state.db) return;
     const adminUid = state.currentUser ? state.currentUser.uid : 'UNKNOWN';
 
-    // 1. Employee Listener
+    // 1. Employee Listener - REMOVED ORDER BY
     console.log(`[DEBUG]: Attempting to listen to ALL employees at path: ${timecards_employees_path}`);
     const employeesQuery = query(collection(state.db, timecards_employees_path));
     const employeesUnsubscribe = onSnapshot(employeesQuery, (snapshot) => {
@@ -184,9 +177,9 @@ function listenToAllData() {
         renderUI();
     });
 
-    // 2. All Logs Listener
+    // 2. All Logs Listener - REMOVED ORDER BY
     console.log(`[DEBUG]: Attempting to listen to ALL logs at path: ${timecards_logs_path}`);
-    const logsQuery = query(collection(state.db, timecards_logs_path), orderBy("timestamp", "desc"));
+    const logsQuery = query(collection(state.db, timecards_logs_path)); 
     const logsUnsubscribe = onSnapshot(logsQuery, (snapshot) => {
         setAppState('adminError', null); // Clear error on successful load
         const logs = [];
@@ -202,9 +195,9 @@ function listenToAllData() {
         renderUI();
     });
 
-    // 3. Audit Logs Listener
+    // 3. Audit Logs Listener - REMOVED ORDER BY
     console.log(`[DEBUG]: Attempting to listen to ALL audit logs at path: ${timecards_audit_logs_path}`);
-    const auditQuery = query(collection(state.db, timecards_audit_logs_path), orderBy("timestamp", "desc"));
+    const auditQuery = query(collection(state.db, timecards_audit_logs_path));
     const auditUnsubscribe = onSnapshot(auditQuery, (snapshot) => {
         setAppState('adminError', null); // Clear error on successful load
         const logs = [];
