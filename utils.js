@@ -1,115 +1,136 @@
 // Filename: utils.js
 import { state } from './state.js';
-import { timecards_audit_logs_path } from './constants.js';
-import { addDoc, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { renderUI } from './uiRender.js';
 
 /*
 |--------------------------------------------------------------------------
-| 1. DATE & TIME UTILITIES
-|--------------------------------------------------------------------------
-*/
-
-export function formatTime(timestamp) {
-    if (!timestamp || typeof timestamp.toDate !== 'function') return 'N/A';
-    return timestamp.toDate().toLocaleTimeString();
-}
-
-export function formatDate(timestamp) {
-    if (!timestamp || typeof timestamp.toDate !== 'function') return 'N/A';
-    return timestamp.toDate().toLocaleDateString();
-}
-
-export function getDateTimeInput(timestamp) {
-    if (!timestamp || typeof timestamp.toDate !== 'function') return { date: '', time: '' };
-    const date = timestamp.toDate();
-    const YYYY = date.getFullYear();
-    const MM = String(date.getMonth() + 1).padStart(2, '0');
-    const DD = String(date.getDate()).padStart(2, '0');
-    const HH = String(date.getHours()).padStart(2, '0');
-    const mm = String(date.getMinutes()).padStart(2, '0');
-    const ss = String(date.getSeconds()).padStart(2, '0');
-    return {
-        date: `${YYYY}-${MM}-${DD}`,
-        time: `${HH}:${mm}:${ss}`
-    };
-}
-
-/*
-|--------------------------------------------------------------------------
-| 2. CAMERA/PHOTO UTILITIES
-|--------------------------------------------------------------------------
-*/
-
-const video = document.getElementById('webcam-feed');
-const canvas = document.getElementById('photo-canvas');
-
-export function startCamera() {
-    if (!navigator.mediaDevices) return; // Cannot start camera without media devices API
-
-    navigator.mediaDevices.getUserMedia({ video: true })
-        .then(stream => {
-            if (video) {
-                video.srcObject = stream;
-                video.play();
-                document.getElementById('camera-section').classList.remove('hidden');
-            }
-        })
-        .catch(err => {
-            console.warn("Camera access denied or failed:", err);
-            // Hide the camera section if access is denied
-            document.getElementById('camera-section').classList.add('hidden');
-        });
-}
-
-export function stopCamera() {
-    if (video && video.srcObject) {
-        video.srcObject.getTracks().forEach(track => track.stop());
-    }
-    // Ensure camera section is hidden when not in kiosk view
-    if (document.getElementById('camera-section')) {
-        document.getElementById('camera-section').classList.add('hidden');
-    }
-}
-
-export function captureImage() {
-    if (!video || !canvas) return null;
-
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    // Convert canvas image to Base64 data URL
-    return canvas.toDataURL('image/png');
-}
-
-/*
-|--------------------------------------------------------------------------
-| 3. AUDIT LOGGING
+| 1. CAMERA AND MEDIA UTILITIES
 |--------------------------------------------------------------------------
 */
 
 /**
- * Writes an administrative action to the audit log collection.
- * @param {string} action - e.g., 'EDIT_LOG', 'DELETE_EMPLOYEE', 'ADD_EMPLOYEE'
- * @param {string} target - Employee name or log ID being acted upon.
- * @param {object} details - Details of the change (e.g., old/new values).
+ * Starts the video stream from the user's camera.
+ * @param {HTMLVideoElement} videoElement - The video element to display the stream.
  */
-export async function writeAuditLog(action, target, details = {}) {
-    if (!state.db || !state.currentUser) return;
+export function startCamera(videoElement) {
+    if (!state.ENABLE_CAMERA) return;
+    
+    try {
+        if (state.mediaStream) {
+            stopCamera();
+        }
+
+        const constraints = { video: { facingMode: "user" } };
+
+        navigator.mediaDevices.getUserMedia(constraints)
+            .then(stream => {
+                state.mediaStream = stream;
+                videoElement.srcObject = stream;
+                videoElement.play();
+                console.log("Camera stream started.");
+            })
+            .catch(err => {
+                console.error("Error accessing camera:", err);
+                state.mediaStream = null;
+                // Update UI to reflect camera failure, if necessary
+            });
+    } catch (e) {
+        console.error("Camera access failed in try-catch:", e);
+        state.mediaStream = null;
+    }
+}
+
+/**
+ * Stops the video stream and releases the camera resource.
+ */
+export function stopCamera() {
+    if (state.mediaStream) {
+        state.mediaStream.getTracks().forEach(track => track.stop());
+        state.mediaStream = null;
+        console.log("Camera stream stopped.");
+    }
+}
+
+/**
+ * Captures a frame from the video stream and returns it as a Base64 string.
+ * @param {HTMLVideoElement} videoElement - The video element to capture from.
+ * @returns {string|null} Base64 image string or null if capture fails.
+ */
+export function takePhoto(videoElement) {
+    if (!state.mediaStream) return null;
 
     try {
-        const logEntry = {
-            timestamp: new Date(),
-            adminUid: state.currentUser.uid,
-            adminName: state.currentUser.name || 'Admin User',
-            action: action,
-            target: target,
-            details: JSON.stringify(details)
-        };
-        await addDoc(collection(state.db, timecards_audit_logs_path), logEntry);
+        const canvas = document.createElement('canvas');
+        canvas.width = videoElement.videoWidth;
+        canvas.height = videoElement.videoHeight;
+        
+        const context = canvas.getContext('2d');
+        context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+        // Convert canvas image to Base64 string
+        const dataURL = canvas.toDataURL('image/jpeg', 0.8);
+        return dataURL;
     } catch (error) {
-        console.error("Failed to write audit log:", error);
+        console.error("Photo capture failed:", error);
+        return null;
     }
+}
+
+/*
+|--------------------------------------------------------------------------
+| 2. DATE AND TIME UTILITIES (Exported)
+|--------------------------------------------------------------------------
+*/
+
+/**
+ * Formats a Firebase Timestamp object into a readable date and time string.
+ * Used for displaying recent activity and audit logs.
+ * @param {Object} timestamp - Firebase Timestamp object.
+ * @returns {string} Formatted date/time string.
+ */
+export function formatTimestamp(timestamp) {
+    if (!timestamp || typeof timestamp.toDate !== 'function') return 'N/A';
+    const date = timestamp.toDate();
+    const options = {
+        month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+    };
+    return date.toLocaleTimeString('en-US', options);
+}
+
+/**
+ * Formats a standard Date object into a readable time string (e.g., 9:00 AM).
+ * Used primarily for payroll reports.
+ * @param {Date} date - Standard Date object.
+ * @returns {string} Formatted time string.
+ */
+export function formatTime(date) {
+    if (!(date instanceof Date)) return 'N/A';
+    const options = { hour: '2-digit', minute: '2-digit', hour12: true };
+    return date.toLocaleTimeString('en-US', options);
+}
+
+/**
+ * Formats a duration in hours (decimal) to a fixed two-decimal string.
+ * Used primarily for payroll reports.
+ * @param {number} hours - Duration in decimal hours.
+ * @returns {string} Formatted duration string.
+ */
+export function formatTotalHours(hours) {
+    if (typeof hours !== 'number') return '0.00';
+    return hours.toFixed(2);
+}
+
+/*
+|--------------------------------------------------------------------------
+| 3. MISCELLANEOUS UTILITIES
+|--------------------------------------------------------------------------
+*/
+
+/**
+ * Utility to execute a delay.
+ * @param {number} ms - Milliseconds to delay.
+ */
+export function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
