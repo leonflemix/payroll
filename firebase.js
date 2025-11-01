@@ -76,9 +76,6 @@ export async function fetchAndSetCurrentUser(uid) {
             // Clear any previous Admin error
             setAppState('adminError', null); 
             
-            // Start listening to the employee's logs (Kiosk data)
-            listenToUserLogs(uid);
-            
             let targetView = 'kiosk'; // Default to KIOSK view
 
             if (userData.isAdmin) {
@@ -86,6 +83,9 @@ export async function fetchAndSetCurrentUser(uid) {
                 // listenToAllData(); 
                 console.warn("ADMIN LISTENERS SKIPPED: Testing for instant failure.");
                 targetView = 'admin_dashboard'; // Explicitly set Admin view
+            } else {
+                 // Start listening to the employee's logs (Kiosk data) ONLY IF NOT ADMIN
+                listenToUserLogs(uid);
             }
 
             navigateTo(targetView); // Navigate to the correct view
@@ -171,7 +171,7 @@ function listenToAllData() {
         });
         setAppState('allEmployees', employeesMap);
         renderEmployeeList(); // Renders employee table on change
-        renderTimeLogList(); // Renders log filter dropdowns
+        renderTimeLogList(); // Re-renders log filter dropdowns
     }, (error) => {
         console.error(`[CRITICAL ADMIN LISTENER FAILURE - Employees]:`, error);
         // DO NOT LOG OUT. Set error state to display to the admin.
