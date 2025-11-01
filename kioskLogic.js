@@ -6,7 +6,7 @@ import { updateDoc, doc, collection, addDoc } from "https://www.gstatic.com/fire
 import { setMessage, capturePhoto, stopCamera, startCamera } from './utils.js';
 import { fetchAndSetCurrentUser } from './firebase.js';
 import { renderUI } from './uiRender.js';
-import { timecards_logs_path, timecards_employees_path, ADMIN_EMAIL } from './constants.js'; // Added ADMIN_EMAIL import
+import { timecards_logs_path, timecards_employees_path, ADMIN_EMAIL } from './constants.js'; 
 
 export async function navigateTo(newView) {
     if (newView === 'login') {
@@ -38,6 +38,13 @@ export async function handleLogin() {
         await fetchAndSetCurrentUser(uid);
 
         if (state.currentUser) {
+            // Re-call startCamera here based on the user's specific setting
+            if (state.currentUser.cameraEnabled) {
+                 startCamera();
+            } else {
+                 stopCamera(); // Ensure it's stopped if the global was on but user's is off
+            }
+
             if (state.currentUser.isAdmin) {
                 navigateTo('admin_dashboard');
                 setMessage('Admin access granted.', 'success');
@@ -70,7 +77,8 @@ export async function handleClockAction() {
 
     setMessage(`${actionText}... Please wait.`, 'success');
 
-    const photoData = capturePhoto();
+    // Only capture photo if the employee is configured to do so
+    const photoData = state.currentUser.cameraEnabled ? capturePhoto() : '';
 
     try {
         const logsRef = collection(db, timecards_logs_path);
@@ -80,7 +88,7 @@ export async function handleClockAction() {
             employeeName: state.currentUser.name,
             type: type,
             timestamp: new Date(),
-            photoData: photoData || '', 
+            photoData: photoData, 
         });
 
         const employeeDocRef = doc(db, timecards_employees_path, state.currentUser.uid);

@@ -2,7 +2,7 @@
 import { state, db } from './state.js';
 import { ENABLE_CAMERA, timecards_audit_logs_path } from './constants.js';
 import { collection, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { renderUI } from './uiRender.js'; // Will be defined below
+import { renderUI } from './uiRender.js'; 
 
 /*
 |--------------------------------------------------------------------------
@@ -99,8 +99,9 @@ export async function startCamera() {
     const video = document.getElementById('video-feed');
     if (!video) return;
 
-    if (!ENABLE_CAMERA) {
-        document.getElementById('camera-status').textContent = 'Camera disabled by admin.';
+    // Check both global master switch and user's setting
+    if (!ENABLE_CAMERA || !state.currentUser.cameraEnabled) {
+        document.getElementById('camera-status').textContent = 'Camera disabled for this user by admin.';
         return;
     }
 
@@ -118,7 +119,6 @@ export async function startCamera() {
 }
 
 export function stopCamera() {
-    if (!ENABLE_CAMERA) return;
     if (state.videoStream) {
         state.videoStream.getTracks().forEach(track => track.stop());
         state.videoStream = null;
@@ -126,9 +126,11 @@ export function stopCamera() {
 }
 
 export function capturePhoto() {
-    if (!ENABLE_CAMERA) return '';
+    if (!ENABLE_CAMERA || !state.currentUser.cameraEnabled) return '';
+    
     const video = document.getElementById('video-feed');
     if (!video || !state.videoStream) return null;
+    
     const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;

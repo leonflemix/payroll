@@ -17,8 +17,8 @@ import {
 } from './kioskLogic.js';
 
 import { 
-    showSignupModal, 
-    handleEmployeeSignup, 
+    showEmployeeModal, // Updated from showSignupModal
+    handleEmployeeSave, // Updated from handleEmployeeSignup
     handleEmployeeDelete, 
     updateAdminLogFilters, 
     generatePayrollReport, 
@@ -33,8 +33,8 @@ window.navigateTo = navigateTo;
 window.handleClockAction = handleClockAction;
 window.handleAdminLogin = handleAdminLogin;
 window.handleLogin = handleLogin;
-window.showSignupModal = showSignupModal;
-window.handleEmployeeSignup = handleEmployeeSignup;
+window.showEmployeeModal = showEmployeeModal; // Updated
+window.handleEmployeeSave = handleEmployeeSave; // Updated
 window.handleEmployeeDelete = handleEmployeeDelete;
 window.updateAdminLogFilters = updateAdminLogFilters;
 window.generatePayrollReport = generatePayrollReport;
@@ -42,7 +42,6 @@ window.showLogModal = showLogModal;
 window.handleLogSave = handleLogSave;
 window.handleLogDelete = handleLogDelete;
 
-// The following functions were missing explicit exports, causing the SyntaxError in adminCrud.js
 
 export function closeLogModal() {
     document.getElementById('log-modal').classList.add('hidden');
@@ -122,7 +121,7 @@ export function renderUI() {
                     </button>
                     <div id="admin-link-block" class="mt-2 p-3 bg-gray-100 rounded-lg hidden">
                         <p class="font-semibold text-sm mb-2">Admin Login</p>
-                        <p class="text-xs text-red-500 mb-2">Admin Email: ${ADMIN_EMAIL} (Use your own password)</p>
+                        <p class="text-xs text-red-500 mb-2">Admin Email: ${ADMIN_EMAIL} (Use your Firebase password)</p>
                         <form onsubmit="event.preventDefault(); handleAdminLogin();" class="space-y-2">
                             <input id="admin-email" type="email" value="${ADMIN_EMAIL}" required class="w-full py-2 px-3 border rounded-lg text-sm" placeholder="Admin Email">
                             <input id="admin-pin" type="password" required class="w-full py-2 px-3 border rounded-lg text-sm" placeholder="Admin Password">
@@ -149,10 +148,13 @@ export function renderUI() {
                         ${log.type.toUpperCase()}
                     </span>
                     <span class="text-sm text-gray-500">${formatTimestamp(log.timestamp, false)}</span>
-                    ${log.photoData ? `<button onclick="showPhotoModal('${log.photoData}')" class="text-indigo-600 hover:text-indigo-800 ml-1"><i class="fas fa-camera"></i></button>` : `<span class="text-xs text-red-500 ml-1"><i class="fas fa-exclamation-circle"></i> N/A</span>`}
+                    ${(state.currentUser.cameraEnabled && log.photoData) ? `<button onclick="showPhotoModal('${log.photoData}')" class="text-indigo-600 hover:text-indigo-800 ml-1"><i class="fas fa-camera"></i></button>` : `<span class="text-xs text-red-500 ml-1"><i class="fas fa-exclamation-circle"></i> N/A</span>`}
                 </li>
             `).join('')
             : '<p class="text-center text-gray-500 py-4">No recent punches found. Clock in to see your activity!</p>';
+        
+        // Use employee's config setting for camera status display
+        const cameraEnabledForUser = state.currentUser.cameraEnabled;
 
         contentHTML = `
             <div class="max-w-4xl w-full p-6 space-y-6 bg-white rounded-xl shadow-2xl">
@@ -167,14 +169,14 @@ export function renderUI() {
                 <div class="grid md:grid-cols-2 gap-6">
                     <div class="flex flex-col items-center">
                         <h3 class="text-xl font-semibold mb-3 text-gray-700">Live Camera Feed</h3>
-                        ${ENABLE_CAMERA ? `
+                        ${cameraEnabledForUser ? `
                             <video id="video-feed" autoplay playsinline class="mb-4"></video>
-                            <p id="camera-status" class="text-xs text-gray-500 mb-4">Starting camera...</p>
+                            <p id="camera-status" class="text-xs text-gray-500 mb-4">Camera ready</p>
                         ` : `
                             <div class="w-full max-w-sm h-72 bg-gray-200 flex items-center justify-center rounded-xl mb-4 shadow-inner">
                                 <i class="fas fa-camera-slash text-4xl text-gray-500"></i>
                             </div>
-                            <p id="camera-status" class="text-xs text-red-500 mb-4">Camera feature is currently disabled.</p>
+                            <p id="camera-status" class="text-xs text-red-500 mb-4">Camera feature is disabled for your account.</p>
                         `}
                         <div id="kiosk-button" class="w-full">
                             <button onclick="handleClockAction()" 
@@ -202,10 +204,6 @@ export function renderUI() {
                 </div>
             </div>
         `;
-        if (ENABLE_CAMERA) {
-            startCamera(); 
-        }
-
     } 
 
     // --- C. Admin Dashboard View ---
@@ -214,12 +212,20 @@ export function renderUI() {
             <tr class="border-b hover:bg-indigo-50/50">
                 <td class="p-3 font-semibold">${e.name}</td>
                 <td class="p-3 text-sm font-mono">${e.email}</td>
+                <td class="p-3 text-xs">
+                    <p>OT Day: <span class="font-semibold">${e.maxHoursDay || 8} hrs</span></p>
+                    <p>Break: <span class="font-semibold">${e.breakMinutes || 30} min</span></p>
+                </td>
                 <td class="p-3">
                     <span class="px-2 py-1 text-xs font-semibold rounded-full ${e.status === 'in' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
                         ${e.status.toUpperCase()}
                     </span>
+                    <span title="${e.cameraEnabled ? 'Camera ON' : 'Camera OFF'}" class="ml-2 text-xs text-gray-500">
+                        <i class="fas ${e.cameraEnabled ? 'fa-video text-green-500' : 'fa-video-slash text-red-500'}"></i>
+                    </span>
                 </td>
-                <td class="p-3">
+                <td class="p-3 space-x-2">
+                    <button onclick="showEmployeeModal('${e.uid}')" class="text-indigo-600 hover:text-indigo-800"><i class="fas fa-edit"></i> Config</button>
                     <button onclick="handleEmployeeDelete('${e.uid}')" class="text-red-600 hover:text-red-800"><i class="fas fa-trash-alt"></i></button>
                 </td>
             </tr>
@@ -237,8 +243,8 @@ export function renderUI() {
                 <td class="p-3 text-sm">${formatTimestamp(log.timestamp)}</td>
                 <td class="p-3 space-x-2">
                     <button onclick="showLogModal('${log.id}')" class="text-indigo-600 hover:text-indigo-800"><i class="fas fa-edit"></i></button>
-                    ${log.photoData && ENABLE_CAMERA ? 
-                        `<button onclick="showPhotoModal('${log.photoData}')" class="text-gray-600 hover:text-gray-800"><i class="fas fa-camera"></i></button>` : 
+                    ${log.photoData ? 
+                        `<button onclick="showLogModal('${log.id}')" class="text-gray-600 hover:text-gray-800"><i class="fas fa-camera"></i></button>` : 
                         `<span title="Missing Photo Data" class="text-red-500"><i class="fas fa-times-circle"></i> N/A</span>`
                     }
                 </td>
@@ -319,14 +325,14 @@ export function renderUI() {
                         <div class="flex items-center space-x-2">
                             <input type="checkbox" id="apply-break-deduction" class="form-checkbox text-indigo-600 h-5 w-5 rounded-md border-gray-300 focus:ring-indigo-500">
                             <label for="apply-break-deduction" class="text-sm font-medium text-gray-700 whitespace-nowrap">
-                                Apply 30 min break deduction (shifts > 6 hrs)
+                                Apply Auto Break deduction (Break minutes are per employee config)
                             </label>
                         </div>
                         <button onclick="generatePayrollReport()" class="w-full md:w-auto py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 transition duration-150">
                             <i class="fas fa-file-csv mr-1"></i> Generate Filtered CSV
                         </button>
                     </div>
-                    <p class="text-xs text-indigo-600 pt-1">The Payroll CSV and Time Log table below use the applied filters.</p>
+                    <p class="text-xs text-indigo-600 pt-1">The Payroll CSV and Time Log table below use the applied filters and employee-specific settings.</p>
                 </div>
 
 
@@ -334,7 +340,7 @@ export function renderUI() {
                 <div class="space-y-4">
                     <div class="flex justify-between items-center">
                         <h3 class="text-xl font-semibold text-gray-700"><i class="fas fa-users mr-1"></i> Employee Management (${state.employees.length} Total)</h3>
-                        <button onclick="showSignupModal()" class="py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition duration-150">
+                        <button onclick="showEmployeeModal()" class="py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition duration-150">
                             <i class="fas fa-user-plus mr-1"></i> Sign Up Employee
                         </button>
                     </div>
@@ -344,8 +350,9 @@ export function renderUI() {
                                 <tr class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     <th class="p-3">Name</th>
                                     <th class="p-3">Email</th>
-                                    <th class="p-3">Current Status</th>
-                                    <th class="p-3">Delete</th>
+                                    <th class="p-3">Config (Hours/Break)</th>
+                                    <th class="p-3">Status / Camera</th>
+                                    <th class="p-3">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="employee-table-body" class="bg-white divide-y divide-gray-200">

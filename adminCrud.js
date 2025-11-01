@@ -1,19 +1,18 @@
 // Filename: adminCrud.js
 import { state, db, auth } from './state.js';
-import { createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { createUserWithEmailAndPassword, updatePassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, query, where, getDocs, Timestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 import { setMessage, downloadCSV, getWeekNumber, writeAuditLog, toDatetimeLocal, formatTimestamp } from './utils.js';
-import { showPhotoModal, closeLogModal, closeSignupModal, closePhotoModal, renderUI } from './uiRender.js'; // CORRECTED IMPORT
+import { showPhotoModal, closeLogModal, closeSignupModal, closePhotoModal, renderUI } from './uiRender.js'; 
 
 import { 
     timecards_employees_path, 
     timecards_logs_path, 
-    STANDARD_WORK_DAY_HOURS, 
-    STANDARD_WORK_WEEK_HOURS, 
     BREAK_TRIGGER_HOURS, 
-    BREAK_DEDUCTION_MINUTES,
-    ENABLE_CAMERA
+    STANDARD_WORK_WEEK_HOURS,
+    DEFAULT_MAX_REGULAR_HOURS_DAY,
+    DEFAULT_BREAK_MINUTES
 } from './constants.js';
 
 /*
@@ -22,27 +21,76 @@ import {
 |--------------------------------------------------------------------------
 */
 
-export function showSignupModal() {
+/**
+ * Shows the Employee Modal (used for both Sign Up and Edit)
+ * @param {string} [uidToEdit] - Optional UID for editing an existing employee
+ */
+export function showEmployeeModal(uidToEdit = null) {
     const modal = document.getElementById('employee-signup-modal');
-    modal.querySelector('#employee-modal-title').textContent = 'Sign Up New Employee';
+    const isEditing = !!uidToEdit;
+
+    // Reset fields
+    modal.querySelector('#employee-uid-edit').value = uidToEdit || '';
     modal.querySelector('#employee-name').value = '';
     modal.querySelector('#employee-email').value = '';
     modal.querySelector('#employee-password').value = '';
+    modal.querySelector('#employee-camera-enabled').checked = false;
+    modal.querySelector('#employee-max-hours').value = DEFAULT_MAX_REGULAR_HOURS_DAY;
+    modal.querySelector('#employee-break-minutes').value = DEFAULT_BREAK_MINUTES;
+
+    if (isEditing) {
+        const employee = state.employees.find(e => e.uid === uidToEdit);
+        if (!employee) {
+            setMessage("Employee not found for editing.", 'error');
+            return;
+        }
+
+        modal.querySelector('#employee-modal-title').textContent = `Edit Employee: ${employee.name}`;
+        
+        modal.querySelector('#employee-name').value = employee.name || '';
+        modal.querySelector('#employee-email').value = employee.email || '';
+        
+        // Hide password/email fields when editing an existing user for security/simplicity
+        modal.querySelector('#email-group').classList.add('hidden');
+        modal.querySelector('#password-group').classList.add('hidden');
+
+        // Load Config
+        modal.querySelector('#employee-camera-enabled').checked = employee.cameraEnabled || false;
+        modal.querySelector('#employee-max-hours').value = employee.maxHoursDay || DEFAULT_MAX_REGULAR_HOURS_DAY;
+        modal.querySelector('#employee-break-minutes').value = employee.breakMinutes || DEFAULT_BREAK_MINUTES;
+
+    } else {
+        modal.querySelector('#employee-modal-title').textContent = 'Sign Up New Employee';
+        modal.querySelector('#email-group').classList.remove('hidden');
+        modal.querySelector('#password-group').classList.remove('hidden');
+    }
+    
     modal.classList.remove('hidden');
 }
-window.showSignupModal = showSignupModal;
+window.showEmployeeModal = showEmployeeModal;
 
 // closeSignupModal is now imported from uiRender.js
 // window.closeSignupModal exposed in uiRender.js
 
-export async function handleEmployeeSignup() {
+export async function handleEmployeeSave() {
     const modal = document.getElementById('employee-signup-modal');
+    const uidToEdit = modal.querySelector('#employee-uid-edit').value;
+    const isEditing = !!uidToEdit;
+
     const name = modal.querySelector('#employee-name').value.trim();
     const email = modal.querySelector('#employee-email').value.trim();
     const password = modal.querySelector('#employee-password').value.trim();
+    
+    const cameraEnabled = modal.querySelector('#employee-camera-enabled').checked;
+    const maxHoursDay = parseFloat(modal.querySelector('#employee-max-hours').value);
+    const breakMinutes = parseInt(modal.querySelector('#employee-break-minutes').value);
 
-    if (!name || !email || password.length < 6) {
-        setMessage("Name and valid email are required. Password must be at least 6 characters.", 'error');
+    if (!name || isNaN(maxHoursDay) || isNaN(breakMinutes) || maxHoursDay <= 0 || breakMinutes < 0) {
+        setMessage("Name, Max Hours (must be > 0), and Break Minutes (must be >= 0) are required.", 'error');
+        return;
+    }
+    if (!isEditing && (!email || password.length < 6)) {
+        setMessage("Valid email and password (min 6 chars) are required for new signup.", 'error');
         return;
     }
 
@@ -51,32 +99,50 @@ export async function handleEmployeeSignup() {
     closeSignupModal();
 
     try {
-        // 1. Create user in Firebase Authentication
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const uid = userCredential.user.uid;
+        let uid = uidToEdit;
 
-        // 2. Create user document in Firestore
-        await setDoc(doc(db, timecards_employees_path, uid), {
-            uid, 
-            name, 
-            email, 
-            status: 'out', 
-            isAdmin: false
-        });
+        if (isEditing) {
+            // Editing existing employee
+            const employeeDocRef = doc(db, timecards_employees_path, uid);
+            await updateDoc(employeeDocRef, {
+                name,
+                cameraEnabled,
+                maxHoursDay,
+                breakMinutes
+            });
+            setMessage(`Employee ${name} updated successfully!`, 'success');
 
-        setMessage(`Employee ${name} created successfully!`, 'success');
+        } else {
+            // 1. Create user in Firebase Authentication
+            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            uid = userCredential.user.uid;
+
+            // 2. Create user document in Firestore with config
+            await setDoc(doc(db, timecards_employees_path, uid), {
+                uid, 
+                name, 
+                email, 
+                status: 'out', 
+                isAdmin: false,
+                cameraEnabled,
+                maxHoursDay,
+                breakMinutes
+            });
+            setMessage(`New Employee ${name} created successfully!`, 'success');
+        }
+
     } catch (error) {
-        console.error("Failed to sign up employee:", error);
+        console.error("Failed to save employee:", error);
         if (error.code === 'auth/email-already-in-use') {
             setMessage("The provided email is already in use.", 'error');
         } else {
-            setMessage(`Failed to create employee. Error: ${error.message}`, 'error');
+            setMessage(`Failed to save employee. Error: ${error.message}`, 'error');
         }
     }
     state.loading = false;
     renderUI();
 }
-window.handleEmployeeSignup = handleEmployeeSignup;
+window.handleEmployeeSave = handleEmployeeSave;
 
 export async function handleEmployeeDelete(uidToDelete) {
     if (!confirm(`Are you sure you want to delete the employee (UID: ${uidToDelete})? This will disable their login and delete all associated data. This cannot be undone.`)) return;
@@ -189,6 +255,7 @@ export function generatePayrollReport() {
     }
 
     const applyBreakDeduction = document.getElementById('apply-break-deduction').checked;
+    const employeesMap = state.employees.reduce((acc, e) => { acc[e.uid] = e; return acc; }, {});
 
     const pairedData = {}; 
     const currentPunches = {}; 
@@ -198,9 +265,15 @@ export function generatePayrollReport() {
     const sortedLogs = [...logsToProcess].sort((a, b) => a.timestamp.toDate().getTime() - b.timestamp.toDate().getTime());
 
     sortedLogs.forEach(log => {
+        const employee = employeesMap[log.employeeUid];
+        if (!employee) return; // Skip logs for deleted or incomplete employees
+
         if (!pairedData[log.employeeUid]) {
             pairedData[log.employeeUid] = { uid: log.employeeUid, name: log.employeeName, shifts: [] };
         }
+
+        const maxHoursDay = employee.maxHoursDay || DEFAULT_MAX_REGULAR_HOURS_DAY;
+        const breakMinutes = employee.breakMinutes || DEFAULT_BREAK_MINUTES;
 
         if (log.type === 'in') {
             currentPunches[log.employeeUid] = log;
@@ -213,15 +286,15 @@ export function generatePayrollReport() {
             let totalShiftHours = rawHours;
             let deductedMinutes = 0;
 
-            // Apply Break Deduction Logic
-            if (applyBreakDeduction && rawHours >= BREAK_TRIGGER_HOURS) {
-                deductedMinutes = BREAK_DEDUCTION_MINUTES;
+            // Apply Break Deduction Logic (using employee specific break time)
+            if (applyBreakDeduction && rawHours >= BREAK_TRIGGER_HOURS && breakMinutes > 0) {
+                deductedMinutes = breakMinutes;
                 totalShiftHours = rawHours - (deductedMinutes / 60);
             }
 
-            // Calculate Daily Overtime (DOT)
-            const regularHours = Math.min(totalShiftHours, STANDARD_WORK_DAY_HOURS);
-            const dailyOvertimeHours = Math.max(0, totalShiftHours - STANDARD_WORK_DAY_HOURS);
+            // Calculate Daily Overtime (DOT) using employee specific maxHoursDay
+            const regularHours = Math.min(totalShiftHours, maxHoursDay);
+            const dailyOvertimeHours = Math.max(0, totalShiftHours - maxHoursDay);
 
             const shiftDate = inLog.timestamp.toDate().toLocaleDateString();
             const weekKey = getWeekNumber(inLog.timestamp.toDate());
@@ -326,7 +399,10 @@ export function showLogModal(logId, log = null) {
     const photoStatus = document.getElementById('log-photo-status');
     const photoBtn = document.getElementById('log-photo-btn');
 
-    if (ENABLE_CAMERA) {
+    const employee = state.employees.find(e => e.uid === logEntry.employeeUid);
+    const cameraEnabled = employee ? employee.cameraEnabled : false;
+
+    if (cameraEnabled) {
         if (logEntry.photoData) {
             photoStatus.innerHTML = '<i class="fas fa-check-circle text-green-500"></i> Photo Available';
             photoBtn.onclick = () => showPhotoModal(logEntry.photoData);
@@ -336,7 +412,7 @@ export function showLogModal(logId, log = null) {
             photoBtn.classList.add('hidden');
         }
     } else {
-         photoStatus.innerHTML = '<i class="fas fa-camera-slash text-gray-500"></i> Camera Disabled';
+         photoStatus.innerHTML = '<i class="fas fa-camera-slash text-gray-500"></i> Camera Disabled for User';
          photoBtn.classList.add('hidden');
     }
 
