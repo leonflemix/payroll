@@ -76,13 +76,15 @@ export async function fetchAndSetCurrentUser(uid) {
             // Clear any previous Admin error
             setAppState('adminError', null); 
             
-            // Start listening to the employee's logs
+            // Start listening to the employee's logs (Kiosk data)
             listenToUserLogs(uid);
             
             let targetView = 'kiosk'; // Default to KIOSK view
 
             if (userData.isAdmin) {
-                listenToAllData();
+                // !!! DRASITC CHANGE: COMMENTING OUT LISTENERS TO TEST FOR FAILURE !!!
+                // listenToAllData(); 
+                console.warn("ADMIN LISTENERS SKIPPED: Testing for instant failure.");
                 targetView = 'admin_dashboard'; // Explicitly set Admin view
             }
 
