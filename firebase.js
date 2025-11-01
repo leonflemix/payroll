@@ -6,7 +6,7 @@ import { renderUI, renderEmployeeList, renderTimeLogList, renderAuditLogList } f
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, doc, getDoc, collection, query, onSnapshot, orderBy, where, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { getFirestore, doc, getDoc, collection, query, onSnapshot, orderBy, where, updateDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 /*
 |--------------------------------------------------------------------------
@@ -50,41 +50,64 @@ export function initFirebase() {
 */
 
 /**
+ * Utility to wait for a given number of milliseconds.
+ */
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
  * Fetches the user's employee document and sets it as the currentUser state.
- * Initiates data listeners if successful.
+ * Initiates data listeners if successful. Includes a retry mechanism for robustness.
  * @param {string} uid - Firebase User UID
  */
 export async function fetchAndSetCurrentUser(uid) {
     if (!state.db) return;
+    const MAX_RETRIES = 3;
+    let success = false;
+    let lastError = null;
 
-    try {
-        const docRef = doc(state.db, timecards_employees_path, uid);
-        const docSnap = await getDoc(docRef);
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        try {
+            const docRef = doc(state.db, timecards_employees_path, uid);
+            const docSnap = await getDoc(docRef);
 
-        if (docSnap.exists()) {
-            const userData = { uid: docSnap.id, ...docSnap.data() };
-            setAppState('currentUser', userData);
-            
-            // Start listening to the employee's logs
-            listenToUserLogs(uid);
-            
-            if (userData.isAdmin) {
-                listenToAllData();
+            if (docSnap.exists()) {
+                const userData = { uid: docSnap.id, ...docSnap.data() };
+                setAppState('currentUser', userData);
+                
+                // Start listening to the employee's logs
+                listenToUserLogs(uid);
+                
+                if (userData.isAdmin) {
+                    listenToAllData();
+                }
+
+                navigateTo('kiosk');
+                renderUI();
+                success = true;
+                break; // Exit loop on success
+
+            } else {
+                console.warn(`[Attempt ${attempt + 1}] Employee document not found for UID: ${uid}. Retrying...`);
+                lastError = `Employee document missing.`;
             }
 
-            navigateTo('kiosk');
-            renderUI();
-
-        } else {
-            // User authenticated but no employee profile found (e.g., new admin created outside signup)
-            console.warn(`Employee document not found for UID: ${uid}. Logging out.`);
-            await state.auth.signOut();
+        } catch (error) {
+            console.error(`[Attempt ${attempt + 1}] Error fetching user data:`, error);
+            lastError = error.message;
         }
 
-    } catch (error) {
-        console.error("Error fetching user data:", error);
-        navigateTo('login_view');
-        renderUI();
+        if (!success && attempt < MAX_RETRIES - 1) {
+            // Wait with exponential backoff before next retry
+            await delay(500 * (attempt + 1));
+        }
+    }
+
+    if (!success) {
+        // If all retries fail, log out and inform the user
+        console.error(`Failed to fetch user profile after ${MAX_RETRIES} attempts. Logging out. Last error: ${lastError}`);
+        await state.auth.signOut();
     }
 }
 
