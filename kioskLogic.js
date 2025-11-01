@@ -1,5 +1,5 @@
 // Filename: kioskLogic.js
-import { state, auth, db } from './state.js';
+import { state } from './state.js'; // Corrected to only import 'state'
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { updateDoc, doc, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -10,7 +10,7 @@ import { timecards_logs_path, timecards_employees_path, ADMIN_EMAIL } from './co
 
 export async function navigateTo(newView) {
     if (newView === 'login') {
-        if (auth.currentUser) await signOut(auth);
+        if (state.auth.currentUser) await signOut(state.auth); // FIX: Use state.auth
         state.currentUser = null;
         stopCamera();
     } else if (newView === 'kiosk') {
@@ -32,7 +32,7 @@ export async function handleLogin() {
     renderUI();
 
     try {
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const userCredential = await signInWithEmailAndPassword(state.auth, email, password); // FIX: Use state.auth
         const uid = userCredential.user.uid;
 
         await fetchAndSetCurrentUser(uid);
@@ -53,13 +53,13 @@ export async function handleLogin() {
                 setMessage(`Welcome, ${state.currentUser.name}!`, 'success');
             }
         } else {
-            await signOut(auth);
+            await signOut(state.auth); // FIX: Use state.auth
             setMessage('Account setup incomplete. Contact admin.', 'error');
         }
     } catch (error) {
         console.error("Login failed:", error.code, error.message);
         setMessage('Login failed. Invalid Email or Password.', 'error');
-        await signOut(auth);
+        await signOut(state.auth); // FIX: Use state.auth
     }
 
     state.loading = false;
@@ -81,7 +81,7 @@ export async function handleClockAction() {
     const photoData = state.currentUser.cameraEnabled ? capturePhoto() : '';
 
     try {
-        const logsRef = collection(db, timecards_logs_path);
+        const logsRef = collection(state.db, timecards_logs_path); // FIX: Use state.db
 
         await addDoc(logsRef, {
             employeeUid: state.currentUser.uid,
@@ -91,7 +91,7 @@ export async function handleClockAction() {
             photoData: photoData, 
         });
 
-        const employeeDocRef = doc(db, timecards_employees_path, state.currentUser.uid);
+        const employeeDocRef = doc(state.db, timecards_employees_path, state.currentUser.uid); // FIX: Use state.db
         await updateDoc(employeeDocRef, { status: type });
 
         state.currentUser.status = type;

@@ -33,3 +33,5 @@ export const state = {
 // Setters for Firebase objects
 export function setDb(dbInstance) { state.db = dbInstance; }
 export function setAuth(authInstance) { state.auth = authInstance; }
+
+// NOTE: db and auth are accessed via the imported 'state' object.
