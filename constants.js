@@ -1,7 +1,7 @@
 // Filename: constants.js
 
-// Firebase Configuration (PROVIDED BY USER)
-export const FIREBASE_CONFIG = {
+// 1. FIREBASE CONFIGURATION (Must match your Firebase project)
+export const firebaseConfig = {
     apiKey: "AIzaSyDkNNCV_5D9TpW3vhY2oTbnpGVCtlZC5n8",
     authDomain: "payroll-52d0b.firebaseapp.com",
     projectId: "payroll-52d0b",
@@ -11,30 +11,21 @@ export const FIREBASE_CONFIG = {
     measurementId: "G-SB0PVF2ZYV"
 };
 
-// Use the environment's __app_id for Firestore paths, falling back to the projectId.
-export const appId = typeof __app_id !== 'undefined' ? __app_id : FIREBASE_CONFIG.projectId;
-export const firebaseConfig = FIREBASE_CONFIG;
+// 2. GLOBAL CONFIGURATION & DEFAULTS
+export const ADMIN_EMAIL = 'admin@kiosk.com'; 
+export const ENABLE_CAMERA = false; // Master switch for camera functionality
 
-// App Constants
-export const ADMIN_EMAIL = 'admin@kiosk.com';
-export const EMPLOYEE_COLLECTION_NAME = 'employees';
-export const LOG_COLLECTION_NAME = 'logs';
-export const AUDIT_COLLECTION_NAME = 'audit_logs'; 
+// 3. FIRESTORE COLLECTION PATHS
+const APP_ID = firebaseConfig.projectId; 
+const BASE_PATH = `artifacts/${APP_ID}/public/data`;
 
-// Firestore Paths (Public Data)
-export const timecards_employees_path = `artifacts/${appId}/public/data/${EMPLOYEE_COLLECTION_NAME}`;
-export const timecards_logs_path = `artifacts/${appId}/public/data/${LOG_COLLECTION_NAME}`;
-export const timecards_audit_logs_path = `artifacts/${appId}/public/data/${AUDIT_COLLECTION_NAME}`; 
+export const timecards_employees_path = `${BASE_PATH}/employees`;
+export const timecards_logs_path = `${BASE_PATH}/logs`;
+export const timecards_audit_logs_path = `${BASE_PATH}/audit_logs`;
 
-// Payroll Constants
-export const STANDARD_WORK_DAY_HOURS = 8;
+// NOTE: Global defaults are kept here only for new employee creation, 
+// but individual employee settings (max hours, break time) should override these.
+export const DEFAULT_MAX_REGULAR_HOURS_DAY = 8;
+export const DEFAULT_BREAK_MINUTES = 30; // Break is deducted if shift > 6 hours
+export const BREAK_TRIGGER_HOURS = 6;
 export const STANDARD_WORK_WEEK_HOURS = 40;
-export const BREAK_TRIGGER_HOURS = 6; // Mandatory break after 6 hours
-export const BREAK_DEDUCTION_MINUTES = 30; // 30 minutes unpaid break
-
-// ** FLAG: Set to true to enable photo captures **
-export const ENABLE_CAMERA = false; 
-
-// The name of the main component used for rendering
-export const APP_CONTAINER_ID = 'app-container';
-export const MESSAGE_BOX_ID = 'message-box';

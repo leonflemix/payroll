@@ -4,140 +4,137 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Employee Timecard Kiosk & Admin</title>
+    <title>Employee Timecard Kiosk</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
-        /* --- STYLE MODULE: Base & Custom --- */
-        body { font-family: 'Inter', sans-serif; background-color: #f7f7f7; }
-        /* Mirror the video feed for a selfie effect */
-        #video-feed {
-            transform: scaleX(-1); 
-            width: 100%;
-            max-width: 400px;
-            height: auto;
-            border-radius: 0.75rem;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-        }
-        .modal { transition: opacity 0.3s ease-in-out; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .app-container { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        video { width: 100%; max-width: 400px; height: auto; transform: scaleX(-1); border-radius: 8px; }
     </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4">
-
-    <!-- Message Box (Rendered by script.js) -->
-    <div id="message-box" class="fixed top-0 inset-x-0 p-4 z-50"></div>
-
-    <!-- Main Application Container -->
-    <div id="app-container" class="flex items-center justify-center w-full">
-        <!-- Content will be rendered here by script.js -->
-        <div class="max-w-md w-full text-center p-8 bg-white rounded-xl shadow-2xl">
-            <i class="fas fa-spinner fa-spin text-4xl text-indigo-600"></i>
-            <p class="mt-4 text-lg font-semibold text-gray-700">Initializing App...</p>
-        </div>
+<body>
+    <div id="message-box" class="fixed top-5 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-sm"></div>
+    <div id="app-container" class="app-container">
+        <!-- Content will be rendered here -->
     </div>
 
-    <!-- 1. Employee Sign Up Modal -->
-    <div id="employee-signup-modal" class="modal hidden fixed inset-0 bg-gray-900 bg-opacity-75 z-50 flex items-center justify-center p-4">
-        <div class="bg-white p-6 rounded-xl shadow-2xl max-w-md w-full" onclick="event.stopPropagation()">
-            <div class="flex justify-between items-center border-b pb-3 mb-4">
-                <h3 id="employee-modal-title" class="text-xl font-bold text-gray-800">Sign Up New Employee</h3>
-                <button onclick="closeSignupModal()" class="text-gray-500 hover:text-gray-800">
-                    <i class="fas fa-times text-xl"></i>
-                </button>
+    <!-- Modals -->
+
+    <!-- Employee Sign-up/Edit Modal -->
+    <div id="employee-signup-modal" class="fixed inset-0 bg-gray-600 bg-opacity-75 hidden z-40 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div class="fixed inset-0 transition-opacity" aria-hidden="true">
+                <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
             </div>
-            <p class="text-sm text-red-500 mb-4">Password must be at least 6 characters long.</p>
-            <form onsubmit="event.preventDefault(); handleEmployeeSignup();" class="space-y-4">
-                <div>
-                    <label for="employee-name" class="block text-sm font-medium text-gray-700">Full Name</label>
-                    <input id="employee-name" type="text" required
-                        class="mt-1 block w-full py-2 px-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <div class="sm:flex sm:items-start">
+                        <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                            <h3 class="text-lg leading-6 font-medium text-gray-900" id="employee-modal-title">Sign Up New Employee</h3>
+                            <div class="mt-4 space-y-4">
+                                <input type="hidden" id="employee-uid-edit">
+                                <div>
+                                    <label for="employee-name" class="block text-sm font-medium text-gray-700">Name</label>
+                                    <input type="text" id="employee-name" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                                </div>
+                                <div id="email-group">
+                                    <label for="employee-email" class="block text-sm font-medium text-gray-700">Email (Used for Login)</label>
+                                    <input type="email" id="employee-email" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                                </div>
+                                <div id="password-group">
+                                    <label for="employee-password" class="block text-sm font-medium text-gray-700">Password (Min 6 chars)</label>
+                                    <input type="password" id="employee-password" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                                </div>
+                                
+                                <!-- New Config Fields -->
+                                <div id="config-fields-group" class="border-t pt-4 space-y-3">
+                                    <h4 class="text-md font-semibold text-gray-800">Payroll & Security Config</h4>
+                                    
+                                    <div class="flex items-center space-x-2">
+                                        <input type="checkbox" id="employee-camera-enabled" class="form-checkbox h-5 w-5 text-indigo-600 rounded-md">
+                                        <label for="employee-camera-enabled" class="text-sm font-medium text-gray-700">Enable Camera for Punching (Per Employee)</label>
+                                    </div>
+                                    
+                                    <div>
+                                        <label for="employee-max-hours" class="block text-sm font-medium text-gray-700">Max Regular Hours / Day (e.g., 8)</label>
+                                        <input type="number" step="0.5" id="employee-max-hours" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" min="1" max="24">
+                                    </div>
+                                    
+                                    <div>
+                                        <label for="employee-break-minutes" class="block text-sm font-medium text-gray-700">Auto Break Deduction (Minutes, e.g., 30)</label>
+                                        <input type="number" step="5" id="employee-break-minutes" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" min="0" max="120">
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div>
-                    <label for="employee-email" class="block text-sm font-medium text-gray-700">Email (Used for Login)</label>
-                    <input id="employee-email" type="email" required
-                        class="mt-1 block w-full py-2 px-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                </div>
-                <div>
-                    <label for="employee-password" class="block text-sm font-medium text-gray-700">Initial Password</label>
-                    <input id="employee-password" type="password" required minlength="6"
-                        class="mt-1 block w-full py-2 px-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                </div>
-                
-                <div class="flex justify-end pt-4">
-                    <button type="submit" 
-                        class="py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition">
-                        <i class="fas fa-user-plus mr-1"></i> Create Account
+                <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                    <button type="button" id="save-employee-btn" onclick="handleEmployeeSave()" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm">
+                        Save Employee
+                    </button>
+                    <button type="button" onclick="closeSignupModal()" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:w-auto sm:text-sm">
+                        Cancel
                     </button>
                 </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- 2. Log Edit/Delete Modal -->
-    <div id="log-modal" class="modal hidden fixed inset-0 bg-gray-900 bg-opacity-75 z-50 flex items-center justify-center p-4">
-        <div class="bg-white p-6 rounded-xl shadow-2xl max-w-md w-full" onclick="event.stopPropagation()">
-            <div class="flex justify-between items-center border-b pb-3 mb-4">
-                <h3 id="log-modal-title" class="text-xl font-bold text-gray-800">Edit Log Entry</h3>
-                <button onclick="closeLogModal()" class="text-gray-500 hover:text-gray-800">
-                    <i class="fas fa-times text-xl"></i>
-                </button>
             </div>
-            <form onsubmit="event.preventDefault(); handleLogSave();" class="space-y-4">
-                <input type="hidden" id="log-id">
-                
-                <div class="text-lg font-semibold text-gray-700">Employee: <span id="log-employee-name" class="text-indigo-600"></span></div>
-
-                <div>
-                    <label for="log-type" class="block text-sm font-medium text-gray-700">Log Type</label>
-                    <select id="log-type" required
-                        class="mt-1 block w-full py-2 px-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                        <option value="in">Clock In</option>
-                        <option value="out">Clock Out</option>
-                    </select>
-                </div>
-                <div>
-                    <label for="log-timestamp" class="block text-sm font-medium text-gray-700">Date and Time</label>
-                    <input id="log-timestamp" type="datetime-local" required
-                        class="mt-1 block w-full py-2 px-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                </div>
-
-                <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                    <span id="log-photo-status" class="text-sm font-medium text-gray-700"></span>
-                    <button id="log-photo-btn" type="button" class="py-1 px-3 border border-transparent rounded-lg text-sm font-medium text-white bg-indigo-500 hover:bg-indigo-600 transition">
-                        <i class="fas fa-camera mr-1"></i> View Photo
-                    </button>
-                </div>
-                
-                <div class="flex justify-between pt-4">
-                    <button id="delete-log-btn" type="button" 
-                        class="py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 transition hidden">
-                        <i class="fas fa-trash-alt mr-1"></i> Delete Log
-                    </button>
-                    <button type="submit" 
-                        class="py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition">
-                        <i class="fas fa-save mr-1"></i> Save Changes
-                    </button>
-                </div>
-            </form>
         </div>
     </div>
 
-    <!-- 3. Photo Viewer Modal (for verification photos) -->
-    <div id="photo-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 z-50 flex items-center justify-center p-4" onclick="closePhotoModal()">
-        <div class="bg-white p-6 rounded-xl shadow-2xl max-w-lg w-full" onclick="event.stopPropagation()">
-            <div class="flex justify-between items-center border-b pb-3 mb-4">
-                <h3 class="text-xl font-bold text-gray-800">Employee Photo Capture</h3>
-                <button onclick="closePhotoModal()" class="text-gray-500 hover:text-gray-800">
-                    <i class="fas fa-times text-xl"></i>
-                </button>
+
+    <!-- Log Edit Modal -->
+    <div id="log-modal" class="fixed inset-0 bg-gray-600 bg-opacity-75 hidden z-40 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <!-- ... Log Modal Structure (omitted for brevity) ... -->
+        <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div class="fixed inset-0 transition-opacity" aria-hidden="true"><div class="absolute inset-0 bg-gray-500 opacity-75"></div></div>
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4" id="log-modal-title">Edit Time Log</h3>
+                    <input type="hidden" id="log-id">
+                    <div class="space-y-4">
+                        <p class="text-sm font-medium text-gray-700">Employee: <span id="log-employee-name" class="font-semibold text-indigo-600"></span></p>
+                        <div>
+                            <label for="log-type" class="block text-sm font-medium text-gray-700">Log Type</label>
+                            <select id="log-type" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                                <option value="in">Clock In</option>
+                                <option value="out">Clock Out</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="log-timestamp" class="block text-sm font-medium text-gray-700">Timestamp (Date and Time)</label>
+                            <input type="datetime-local" id="log-timestamp" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                        </div>
+                        <div id="log-photo-group" class="flex justify-between items-center border-t pt-4">
+                            <p class="text-sm font-medium text-gray-700">Photo Status: <span id="log-photo-status" class="font-semibold"></span></p>
+                            <button id="log-photo-btn" class="py-1 px-3 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 transition hidden">View Photo</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse items-center">
+                    <button type="button" onclick="handleLogSave()" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 sm:ml-3 sm:w-auto sm:text-sm">Save Changes</button>
+                    <button type="button" id="delete-log-btn" class="mt-3 sm:mt-0 w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 sm:ml-3 sm:w-auto sm:text-sm">Delete Log</button>
+                    <button type="button" onclick="closeLogModal()" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:mt-0 sm:w-auto sm:text-sm">Cancel</button>
+                </div>
             </div>
-            <img id="modal-photo" src="" alt="Employee Capture" class="w-full h-auto rounded-lg shadow-md border-4 border-indigo-200">
-            <p class="text-center text-sm text-gray-600 mt-4">Photo captured at punch time.</p>
         </div>
     </div>
 
-    <!-- Load the main application logic -->
+    <!-- Photo View Modal -->
+    <div id="photo-modal" class="fixed inset-0 bg-gray-900 bg-opacity-90 hidden z-50" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <div class="flex items-center justify-center min-h-screen">
+            <div class="relative max-w-xl mx-auto rounded-lg shadow-2xl p-4">
+                <h3 class="text-xl font-bold text-white mb-3 text-center">Verification Photo</h3>
+                <img id="modal-photo" class="max-w-full h-auto rounded-lg shadow-xl" alt="Verification Photo">
+                <button onclick="closePhotoModal()" class="mt-4 w-full py-2 px-4 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Close</button>
+            </div>
+        </div>
+    </div>
+
     <script type="module" src="./main.js"></script>
-
 </body>
 </html>
