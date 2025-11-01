@@ -1,119 +1,132 @@
 // Filename: kioskLogic.js
-import { state } from './state.js'; // Corrected to only import 'state'
+import { state, setAppState } from './state.js';
+import { setStatusMessage, setAuthMessage } from './uiRender.js';
+import { ADMIN_EMAIL, ENABLE_CAMERA, timecards_logs_path, timecards_employees_path } from './constants.js';
+import { addDoc, collection, doc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { updateDoc, doc, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { startCamera, stopCamera, captureImage } from './utils.js';
 
-import { setMessage, capturePhoto, stopCamera, startCamera } from './utils.js';
-import { fetchAndSetCurrentUser } from './firebase.js';
-import { renderUI } from './uiRender.js';
-import { timecards_logs_path, timecards_employees_path, ADMIN_EMAIL } from './constants.js'; 
+/*
+|--------------------------------------------------------------------------
+| 1. NAVIGATION
+|--------------------------------------------------------------------------
+*/
 
-export async function navigateTo(newView) {
-    if (newView === 'login') {
-        if (state.auth.currentUser) await signOut(state.auth); // FIX: Use state.auth
-        state.currentUser = null;
-        stopCamera();
-    } else if (newView === 'kiosk') {
-        if (!state.currentUser) newView = 'login';
+export function navigateTo(viewName) {
+    if (viewName === 'kiosk' && state.currentUser.isAdmin) {
+        viewName = 'admin_dashboard';
+    }
+
+    if (viewName === 'kiosk' && state.currentUser.cameraEnabled) {
         startCamera();
-    } else if (newView === 'report_login' || newView === 'admin_dashboard') {
+    } else {
         stopCamera();
     }
-    state.view = newView;
-    renderUI();
-}
-window.navigateTo = navigateTo; // Expose globally for HTML
 
+    setAppState('currentView', viewName);
+    setStatusMessage(''); // Clear general messages on navigation
+}
+
+/*
+|--------------------------------------------------------------------------
+| 2. LOGIN / LOGOUT HANDLERS
+|--------------------------------------------------------------------------
+*/
+
+// Handles user login via email and password
 export async function handleLogin() {
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
 
-    state.loading = true;
-    renderUI();
-
-    try {
-        const userCredential = await signInWithEmailAndPassword(state.auth, email, password); // FIX: Use state.auth
-        const uid = userCredential.user.uid;
-
-        await fetchAndSetCurrentUser(uid);
-
-        if (state.currentUser) {
-            // Re-call startCamera here based on the user's specific setting
-            if (state.currentUser.cameraEnabled) {
-                 startCamera();
-            } else {
-                 stopCamera(); // Ensure it's stopped if the global was on but user's is off
-            }
-
-            if (state.currentUser.isAdmin) {
-                navigateTo('admin_dashboard');
-                setMessage('Admin access granted.', 'success');
-            } else {
-                navigateTo('kiosk');
-                setMessage(`Welcome, ${state.currentUser.name}!`, 'success');
-            }
-        } else {
-            await signOut(state.auth); // FIX: Use state.auth
-            setMessage('Account setup incomplete. Contact admin.', 'error');
-        }
-    } catch (error) {
-        console.error("Login failed:", error.code, error.message);
-        setMessage('Login failed. Invalid Email or Password.', 'error');
-        await signOut(state.auth); // FIX: Use state.auth
+    if (!email || !password) {
+        setAuthMessage('Please enter both email and password.', 'error');
+        return;
     }
 
-    state.loading = false;
-    renderUI();
+    try {
+        await signInWithEmailAndPassword(state.auth, email, password);
+        // AuthStateChanged listener in firebase.js handles navigation and data loading
+        setAuthMessage('Login successful...', 'success');
+        document.getElementById('login-password').value = ''; // Clear password field
+
+    } catch (error) {
+        console.error("Login failed:", error);
+        if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+            setAuthMessage('Invalid email or password.', 'error');
+        } else if (error.code === 'auth/too-many-requests') {
+            setAuthMessage('Too many login attempts. Try again later.', 'error');
+        } else {
+            setAuthMessage(`Login error: ${error.message}`, 'error');
+        }
+    }
 }
-window.handleLogin = handleLogin; // Expose globally for HTML
+
+// Handles user logout
+export async function handleLogout() {
+    try {
+        await signOut(state.auth);
+        // AuthStateChanged listener in firebase.js handles navigation cleanup
+    } catch (error) {
+        console.error("Logout failed:", error);
+        setAuthMessage('Logout error.', 'error');
+    }
+}
+
+/*
+|--------------------------------------------------------------------------
+| 3. CLOCK IN/OUT HANDLER
+|--------------------------------------------------------------------------
+*/
 
 export async function handleClockAction() {
-    if (state.isClocking || !state.currentUser) return;
-    state.isClocking = true;
-    renderUI();
+    if (!state.currentUser || !state.currentUser.uid) {
+        setStatusMessage('Authentication error. Please log out and log back in.', 'error');
+        return;
+    }
 
-    const type = state.currentUser.status === 'out' ? 'in' : 'out';
-    const actionText = type === 'in' ? 'Clocking In' : 'Clocking Out';
+    const currentStatus = state.currentUser.status;
+    const nextStatus = currentStatus === 'in' ? 'out' : 'in';
+    let photoData = null;
 
-    setMessage(`${actionText}... Please wait.`, 'success');
-
-    // Only capture photo if the employee is configured to do so
-    const photoData = state.currentUser.cameraEnabled ? capturePhoto() : '';
+    if (state.currentUser.cameraEnabled && ENABLE_CAMERA) {
+        try {
+            photoData = captureImage();
+        } catch (error) {
+            console.error("Camera capture failed:", error);
+            setStatusMessage('Failed to capture photo. Clock action cancelled.', 'error');
+            return;
+        }
+    }
 
     try {
-        const logsRef = collection(state.db, timecards_logs_path); // FIX: Use state.db
-
-        await addDoc(logsRef, {
+        // 1. Write the new log entry
+        const logData = {
             employeeUid: state.currentUser.uid,
-            employeeName: state.currentUser.name,
-            type: type,
             timestamp: new Date(),
-            photoData: photoData, 
+            type: nextStatus,
+            photo: photoData, // base64 string or null
+            name: state.currentUser.name
+        };
+        await addDoc(collection(state.db, timecards_logs_path), logData);
+
+        // 2. Update the employee's status in their profile
+        const employeeDocRef = doc(state.db, timecards_employees_path, state.currentUser.uid);
+        await updateDoc(employeeDocRef, {
+            status: nextStatus
         });
 
-        const employeeDocRef = doc(state.db, timecards_employees_path, state.currentUser.uid); // FIX: Use state.db
-        await updateDoc(employeeDocRef, { status: type });
-
-        state.currentUser.status = type;
-        state.isClocking = false;
-        setMessage(`Successfully Clocked ${type.toUpperCase()}.`, 'success');
+        // 3. Provide feedback
+        const action = nextStatus === 'out' ? 'Clocked OUT' : 'Clocked IN';
+        setStatusMessage(`${action} successfully at ${new Date().toLocaleTimeString()}.`, 'success');
 
     } catch (error) {
         console.error("Clock action failed:", error);
-        setMessage(`Failed to Clock ${type.toUpperCase()}. Check console.`, 'error');
-        state.isClocking = false;
+        setStatusMessage('Clock action failed: Please check your connection and permissions.', 'error');
     }
-    renderUI();
 }
-window.handleClockAction = handleClockAction; // Expose globally for HTML
 
-export function handleAdminLogin() {
-    const email = document.getElementById('admin-email').value;
-    const pin = document.getElementById('admin-pin').value;
-
-    // Re-use the main login function
-    document.getElementById('login-email').value = email;
-    document.getElementById('login-password').value = pin;
-    handleLogin();
-}
-window.handleAdminLogin = handleAdminLogin; // Expose globally for HTML
+// Attach handlers to the window for DOM access
+window.navigateTo = navigateTo;
+window.handleLogin = handleLogin;
+window.handleLogout = handleLogout;
+window.handleClockAction = handleClockAction;

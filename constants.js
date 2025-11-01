@@ -41,3 +41,6 @@ export const timecards_audit_logs_path = `${BASE_PATH}/audit_logs`;
 
 // Set to true to enable the camera stream and photo verification on clock actions.
 export const ENABLE_CAMERA = false; 
+
+// Email used for the Admin account (needed for UI hint/logic checks)
+export const ADMIN_EMAIL = 'admin@kiosk.com';
