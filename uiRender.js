@@ -340,3 +340,22 @@ export function closeAllModals() {
     closePhotoModal();
     closeSettingsModal();
 }
+
+/**
+ * Sets a temporary message (e.g., success or error) in the Auth Status area.
+ * @param {string} message The message to display.
+ * @param {boolean} isError If true, displays in red (error); otherwise, green (success).
+ */
+export function setAuthMessage(message, isError = false) {
+    const authStatus = document.getElementById('auth-status');
+    if (authStatus) {
+        authStatus.textContent = message;
+        authStatus.classList.remove('text-green-500', 'text-red-500');
+        authStatus.classList.add(isError ? 'text-red-500' : 'text-green-500');
+
+        // Clear the message after a delay
+        setTimeout(() => {
+            renderUI(); // Re-render the UI to restore the default status message
+        }, 5000);
+    }
+}
