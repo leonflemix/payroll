@@ -5,7 +5,7 @@ import { navigateTo } from './kioskLogic.js';
 import { renderUI } from './uiRender.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { getFirestore, doc, getDoc, collection, query, where, onSnapshot, limit, updateDoc, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { getFirestore, doc, getDoc, collection, query, where, onSnapshot, limit, updateDoc, orderBy, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 /*
 |--------------------------------------------------------------------------
@@ -64,7 +64,7 @@ window.initFirebase = initFirebase; // Expose globally for main.js
 |--------------------------------------------------------------------------
 */
 
-async function fetchAndSetCurrentUser(uid) {
+export async function fetchAndSetCurrentUser(uid) {
     if (!state.db) return;
 
     try {
@@ -72,7 +72,7 @@ async function fetchAndSetCurrentUser(uid) {
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
-            setCurrentUser({ id: docSnap.id, ...docSnap.data() });
+            setCurrentUser({ id: docSnap.id, ...docSnap.data(), uid: uid }); // Added uid here for consistency
             setMessage(`Welcome back, ${state.currentUser.name}!`, 'success');
         } else {
             // User exists in Auth but not in Employees collection (Should only happen if manually deleted)
