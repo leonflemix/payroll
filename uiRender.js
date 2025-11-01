@@ -377,3 +377,13 @@ export function renderUI() {
 
     $appContainer.innerHTML = contentHTML;
 }
+
+// Inside uiRender.js, find the definitions for your modal functions, and add 'export'
+export function closeLogModal() {
+    document.getElementById('log-modal').classList.add('hidden');
+}
+
+export function closeSignupModal() {
+    document.getElementById('employee-signup-modal').classList.add('hidden');
+}
+
