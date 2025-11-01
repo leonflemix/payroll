@@ -138,7 +138,3 @@ export function capturePhoto() {
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
     return canvas.toDataURL('image/png');
 }
-
-// Re-export all window functions for global access in HTML
-// NOTE: renderUI is defined in uiRender.js but imported here for circular dependency resolution.
-export * from './uiRender.js'; 

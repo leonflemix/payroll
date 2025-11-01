@@ -6,9 +6,7 @@ import {
 } from './constants.js';
 import { 
     formatTimestamp, 
-    startCamera, 
-    showPhotoModal,
-    closePhotoModal 
+    startCamera 
 } from './utils.js';
 
 import { 
@@ -43,8 +41,32 @@ window.generatePayrollReport = generatePayrollReport;
 window.showLogModal = showLogModal;
 window.handleLogSave = handleLogSave;
 window.handleLogDelete = handleLogDelete;
-window.showPhotoModal = showPhotoModal;
-window.closePhotoModal = closePhotoModal;
+
+// The following functions were missing explicit exports, causing the SyntaxError in adminCrud.js
+
+export function closeLogModal() {
+    document.getElementById('log-modal').classList.add('hidden');
+}
+window.closeLogModal = closeLogModal; // Expose globally for HTML
+
+export function closeSignupModal() {
+    document.getElementById('employee-signup-modal').classList.add('hidden');
+}
+window.closeSignupModal = closeSignupModal; // Expose globally for HTML
+
+export function showPhotoModal(base64Image) {
+    const modal = document.getElementById('photo-modal');
+    const img = document.getElementById('modal-photo');
+    img.src = base64Image;
+    modal.classList.remove('hidden');
+}
+window.showPhotoModal = showPhotoModal; // Expose globally for HTML
+
+export function closePhotoModal() {
+    document.getElementById('photo-modal').classList.add('hidden');
+    document.getElementById('modal-photo').src = '';
+}
+window.closePhotoModal = closePhotoModal; // Expose globally for HTML
 
 
 export function renderUI() {
@@ -377,13 +399,3 @@ export function renderUI() {
 
     $appContainer.innerHTML = contentHTML;
 }
-
-// Inside uiRender.js, find the definitions for your modal functions, and add 'export'
-export function closeLogModal() {
-    document.getElementById('log-modal').classList.add('hidden');
-}
-
-export function closeSignupModal() {
-    document.getElementById('employee-signup-modal').classList.add('hidden');
-}
-

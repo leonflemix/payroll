@@ -1,10 +1,10 @@
 // Filename: adminCrud.js
-import { state, db } from './state.js';
+import { state, db, auth } from './state.js';
 import { createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, query, where, getDocs, Timestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 import { setMessage, downloadCSV, getWeekNumber, writeAuditLog, toDatetimeLocal, formatTimestamp } from './utils.js';
-import { showPhotoModal, closeLogModal, renderUI } from './uiRender.js';
+import { showPhotoModal, closeLogModal, closeSignupModal, closePhotoModal, renderUI } from './uiRender.js'; // CORRECTED IMPORT
 
 import { 
     timecards_employees_path, 
@@ -32,10 +32,8 @@ export function showSignupModal() {
 }
 window.showSignupModal = showSignupModal;
 
-export function closeSignupModal() {
-    document.getElementById('employee-signup-modal').classList.add('hidden');
-}
-window.closeSignupModal = closeSignupModal;
+// closeSignupModal is now imported from uiRender.js
+// window.closeSignupModal exposed in uiRender.js
 
 export async function handleEmployeeSignup() {
     const modal = document.getElementById('employee-signup-modal');
