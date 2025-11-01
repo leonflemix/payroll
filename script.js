@@ -1,3 +1,4 @@
+// Filename: script.js
 /*
 |--------------------------------------------------------------------------
 | 1. FIREBASE IMPORTS & INITIALIZATION
@@ -34,8 +35,7 @@ const firebaseConfig = FIREBASE_CONFIG;
 
 // App Constants
 const ADMIN_EMAIL = 'admin@kiosk.com';
-// Admin PIN must be >= 6 chars for Firebase Auth policy
-const ADMIN_PIN = 'admin123'; 
+// ADMIN_PIN removed. Admin must be created manually and status granted via Firestore 'employees' collection.
 const EMPLOYEE_COLLECTION_NAME = 'employees';
 const LOG_COLLECTION_NAME = 'logs';
 const AUDIT_COLLECTION_NAME = 'audit_logs'; 
@@ -268,9 +268,8 @@ async function fetchAndSetCurrentUser(uid) {
 
     if (docSnap.exists()) {
         state.currentUser = { uid, ...docSnap.data() };
-    } else if (auth.currentUser && auth.currentUser.email === ADMIN_EMAIL) {
-        state.currentUser = { uid: auth.currentUser.uid, email: ADMIN_EMAIL, name: 'Admin', isAdmin: true };
     } else {
+        // If doc doesn't exist for ANY user (including admin), sign them out.
         state.currentUser = null;
         signOut(auth); 
         setMessage("User data missing in Firestore. Signed out.", 'error');
@@ -311,21 +310,8 @@ async function setupInitialData() {
                 }
             }
 
-            // 2. Setup Admin account
-             try {
-                 await createUserWithEmailAndPassword(auth, ADMIN_EMAIL, ADMIN_PIN);
-                 await setDoc(doc(db, timecards_employees_path, auth.currentUser.uid), { 
-                    uid: auth.currentUser.uid, 
-                    email: ADMIN_EMAIL, 
-                    name: 'Admin', 
-                    status: 'out',
-                    isAdmin: true
-                });
-             } catch (e) {
-                  if (e.code !== 'auth/email-already-in-use') {
-                         console.error("Admin user setup failed:", e);
-                    }
-             }
+            // 2. Setup Admin account - REMOVED HARDCODED CREATION
+            // Admin must be manually created in Auth/Firestore.
 
             setMessage("Initial employee data loaded.", 'success');
         }
@@ -1001,10 +987,10 @@ function renderUI() {
                     </button>
                     <div id="admin-link-block" class="mt-2 p-3 bg-gray-100 rounded-lg hidden">
                         <p class="font-semibold text-sm mb-2">Admin Login</p>
-                        <p class="text-xs text-red-500 mb-2">Email: ${ADMIN_EMAIL}, Pass: ${ADMIN_PIN}</p>
+                        <p class="text-xs text-red-500 mb-2">Admin Email: ${ADMIN_EMAIL} (Use your own password)</p>
                         <form onsubmit="event.preventDefault(); handleAdminLogin();" class="space-y-2">
                             <input id="admin-email" type="email" value="${ADMIN_EMAIL}" required class="w-full py-2 px-3 border rounded-lg text-sm" placeholder="Admin Email">
-                            <input id="admin-pin" type="password" value="${ADMIN_PIN}" required class="w-full py-2 px-3 border rounded-lg text-sm" placeholder="Admin Password">
+                            <input id="admin-pin" type="password" required class="w-full py-2 px-3 border rounded-lg text-sm" placeholder="Admin Password">
                             <button type="submit" class="w-full py-2 px-4 bg-gray-700 text-white text-sm rounded-lg hover:bg-gray-800 transition">
                                 Go to Dashboard
                             </button>
