@@ -2,9 +2,9 @@
 import { state } from './state.js';
 import { renderEmployeeList, renderTimeLogList, renderAuditLogList, closeAllModals, setAuthMessage, closeSignupModal, closeLogModal, closeSettingsModal } from './uiRender.js';
 import { writeAuditLog, updateEmployeeStatusAfterLogEdit } from './firebase.js';
-import { calculateShiftTime, formatTotalHours, formatTime } from './utils.js';
+import { formatTotalHours, formatTime } from './utils.js';
 import { createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { doc, setDoc, deleteDoc, collection, getDocs, Timestamp, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { doc, setDoc, deleteDoc, collection, getDocs, Timestamp, query, where, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 /*
 |--------------------------------------------------------------------------
