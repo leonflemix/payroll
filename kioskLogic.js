@@ -2,7 +2,7 @@
 import { state, updateState } from './state.js';
 import { ADMIN_EMAIL, ENABLE_CAMERA } from './constants.js';
 import { setAuthMessage, closeAllModals, renderUI } from './uiRender.js';
-import { takePhoto, stopCamera } from './utils.js';
+import { takePhoto, stopCamera, startCamera } from './utils.js'; // Added startCamera
 import { getAuth, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { collection, doc, setDoc, Timestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -14,8 +14,7 @@ import { collection, doc, setDoc, Timestamp } from "https://www.gstatic.com/fire
 
 /**
  * Handles the employee and admin login process.
- * @param {string} email - User's email address.
- * @param {string} password - User's password.
+ * Reads email/password from the DOM.
  */
 export async function handleLogin() {
     const email = document.getElementById('login-email').value;

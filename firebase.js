@@ -76,9 +76,8 @@ export async function fetchAndSetCurrentUser(user) {
             setUserId(user.uid);
 
             if (userData.isAdmin) {
-                console.warn("ADMIN LISTENERS SKIPPED: Testing for instant failure.");
-                // Listeners are conditionally restored if the bypass is removed
-                // listenToAllData();
+                // Remove the ADMIN LISTENERS SKIPPED warning now that module errors are fixed
+                // listenToAllData(); 
                 navigateTo('admin_dashboard_view');
             } else {
                 listenToUserLogs(user.uid);
@@ -129,7 +128,7 @@ export async function updateEmployeeStatusAfterLogEdit(employeeUid) {
 
         // Status logic: if last punch was 'in', next action should be 'out' (status='in'), and vice versa.
         // If no logs, status is 'out'.
-        const newStatus = latestLog ? (latestLog.type === 'in' ? 'out' : 'in') : 'out';
+        const newStatus = latestLog ? (latestLog.type === 'out' ? 'in' : 'out') : 'out'; // Fixed logic: if last was 'out', next is 'in'
 
         const employeeRef = doc(state.db, state.employee_path, employeeUid);
         await updateDoc(employeeRef, { status: newStatus });

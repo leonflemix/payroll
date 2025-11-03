@@ -2,7 +2,7 @@
 import { state, updateState } from './state.js';
 import { handleClockAction, handleLogin, handleLogout, navigateTo } from './kioskLogic.js';
 import { handleEmployeeSignup, handleEmployeeSettings, deleteEmployee, handleLogSave, handleLogDelete, generatePayrollReport, toggleSignupModal, toggleSettingsModal, toggleLogModal } from './adminCrud.js';
-import { formatTimestamp, base64ToArrayBuffer, formatTotalHours } from './utils.js';
+import { formatTimestamp, base64ToArrayBuffer, formatTotalHours, startCamera, stopCamera } from './utils.js';
 
 /*
 |--------------------------------------------------------------------------
