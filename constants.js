@@ -22,12 +22,7 @@ export const FIREBASE_CONFIG = {
 |--------------------------------------------------------------------------
 */
 
-const appId = FIREBASE_CONFIG.projectId; 
-const BASE_PATH = `artifacts/${appId}/public/data`;
-
-export const timecards_employees_path = `${BASE_PATH}/employees`;
-export const timecards_logs_path = `${BASE_PATH}/time_logs`;
-export const timecards_audit_logs_path = `${BASE_PATH}/audit_logs`;
+export const PUBLIC_PATH_ROOT = `artifacts`;
 
 /*
 |--------------------------------------------------------------------------

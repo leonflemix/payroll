@@ -23,7 +23,21 @@ export const state = {
     // Data Caches
     allEmployees: {},
     allLogs: [],
-    auditLogs: []
+    auditLogs: [],
+    
+    // Path Caches (set during initialization)
+    employee_path: null,
+    timecards_logs_path: null,
+    audit_logs_path: null,
+
+    // Admin UI State
+    adminError: null,
+    filterEmployeeUid: null, // UID currently selected in the admin filter
+    isDarkMode: false, // Example of UI settings
+    
+    // Kiosk Data
+    mediaStream: null, // Stores the active camera stream
+    recentLogs: [], // Last 5 logs for current user
 };
 
 /*
@@ -33,8 +47,21 @@ export const state = {
 | Functions to safely update the state object.
 */
 
+/**
+ * Updates a single key in the state object.
+ * @param {string} key - The state property to update.
+ * @param {*} value - The new value.
+ */
 export function setAppState(key, value) {
     state[key] = value;
+}
+
+/**
+ * Updates multiple properties in the state object.
+ * @param {Object} updates - An object containing properties to update.
+ */
+export function updateState(updates) {
+    Object.assign(state, updates);
 }
 
 export function setDb(dbInstance) {
@@ -43,4 +70,12 @@ export function setDb(dbInstance) {
 
 export function setAuth(authInstance) {
     state.auth = authInstance;
+}
+
+export function setUserId(uid) {
+    // No direct need for userId state, but helpful for debugging
+}
+
+export function setAdminError(error) {
+    state.adminError = error;
 }

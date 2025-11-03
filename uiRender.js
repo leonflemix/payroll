@@ -1,9 +1,8 @@
 // Filename: uiRender.js
-import { state } from './state.js';
-import updateEmployee from './adminCrud.js';
-import { handleClockAction, handleLogin } from './kioskLogic.js';
-import { formatTimestamp, calculateShiftTime, formatTime, formatTotalHours } from './utils.js';
-import pcmToWav from './utils.js';
+import { state, updateState } from './state.js';
+import { handleClockAction, handleLogin, handleLogout, navigateTo } from './kioskLogic.js';
+import { handleEmployeeSignup, handleEmployeeSettings, deleteEmployee, handleLogSave, handleLogDelete, generatePayrollReport, toggleSignupModal, toggleSettingsModal, toggleLogModal } from './adminCrud.js';
+import { formatTimestamp, base64ToArrayBuffer, formatTotalHours } from './utils.js';
 
 /*
 |--------------------------------------------------------------------------
@@ -16,62 +15,50 @@ import pcmToWav from './utils.js';
  */
 export function renderUI() {
     try {
-        const appContainer = document.getElementById('app-container');
-        if (!appContainer) return;
+        // --- 1. Set View Visibility ---
+        const views = ['login_view', 'kiosk_view', 'admin_dashboard_view'];
+        views.forEach(viewId => {
+            const viewElement = document.getElementById(viewId);
+            if (viewElement) {
+                viewElement.style.display = (viewId === state.currentView) ? 'block' : 'none';
+            }
+        });
 
-        // Apply dark mode based on state.
-        if (state.isDarkMode) {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-        }
-
-        // Display Auth status message
-        const authStatus = document.getElementById('auth-status');
-        if (state.isAuthReady && state.currentUser) {
-            authStatus.innerHTML = `Signed in as: ${state.currentUser.email} (${state.currentUser.name})`;
-            authStatus.classList.remove('text-red-500');
-            authStatus.classList.add('text-green-500');
-        } else if (state.isAuthReady) {
-            authStatus.innerHTML = `Please login.`;
-            authStatus.classList.add('text-red-500');
-            authStatus.classList.remove('text-green-500');
-        } else {
-            authStatus.innerHTML = `Connecting to Firebase...`;
-            authStatus.classList.remove('text-red-500', 'text-green-500');
-        }
-        
-        // Render login/logout button
-        document.getElementById('logout-button').classList.toggle('hidden', !state.currentUser);
-        document.getElementById('login-form-container').classList.toggle('hidden', !!state.currentUser);
-
-
-        // --- Render Kiosk View ---
-        if (state.currentView === 'kiosk' && state.currentUser) {
+        // --- 2. Render View-Specific Content ---
+        if (state.currentView === 'kiosk_view' && state.currentUser) {
             renderKiosk();
         }
 
-        // --- Render Admin Dashboard ---
-        if (state.currentView === 'admin_dashboard') {
-            // The Admin Dashboard rendering functions will run here
+        if (state.currentView === 'admin_dashboard_view') {
+            // Render dashboard components regardless of loading state
             renderEmployeeList();
             renderTimeLogList();
             renderAuditLogList();
 
             // Display Admin Dashboard Error
             const adminErrorEl = document.getElementById('admin-error-message');
-            if (state.adminError) {
-                adminErrorEl.textContent = `CRITICAL ERROR: ${state.adminError}`;
-                adminErrorEl.classList.remove('hidden');
-            } else {
-                adminErrorEl.classList.add('hidden');
+            if (adminErrorEl) {
+                if (state.adminError) {
+                    adminErrorEl.textContent = `CRITICAL DATA ERROR: ${state.adminError}`;
+                    adminErrorEl.classList.remove('hidden');
+                } else {
+                    adminErrorEl.classList.add('hidden');
+                }
             }
         }
+
+        // --- 3. Set Global Listeners and Attach Functions ---
+        const clockBtn = document.getElementById('clock-action-btn');
+        if (clockBtn) {
+            clockBtn.onclick = () => {
+                const videoEl = document.getElementById('webcam-feed');
+                handleClockAction(videoEl);
+            };
+        }
         
-        // Always render the main navigation/header elements regardless of view
-        const headerUserName = document.getElementById('header-user-name');
-        if (headerUserName) {
-            headerUserName.textContent = state.currentUser ? state.currentUser.name : '';
+        const loginBtn = document.querySelector('#login_view button');
+        if (loginBtn) {
+            loginBtn.onclick = handleLogin;
         }
 
     } catch (error) {
@@ -92,42 +79,57 @@ export function renderUI() {
 export function renderKiosk() {
     if (!state.currentUser) return;
 
-    const kioskStatus = document.getElementById('kiosk-status');
-    const clockButton = document.getElementById('clock-button');
+    const nameDisplay = document.getElementById('kiosk-employee-name');
+    const statusBadge = document.getElementById('kiosk-status-badge');
+    const clockButton = document.getElementById('clock-action-btn');
     const recentActivity = document.getElementById('recent-activity-list');
-    const nameDisplay = document.getElementById('kiosk-user-name');
     const currentStatus = state.currentUser.status || 'out';
+    const cameraSection = document.getElementById('camera-section');
 
-    // Update Name and Status
+    // Update Name and Camera Visibility
     nameDisplay.textContent = state.currentUser.name;
+    
+    const showCamera = state.currentUser.cameraEnabled && state.ENABLE_CAMERA;
+    if (cameraSection) {
+        cameraSection.style.display = showCamera ? 'block' : 'none';
+    }
 
-    if (currentStatus === 'in') {
-        kioskStatus.textContent = 'Clocked In';
-        kioskStatus.classList.remove('bg-gray-200');
-        kioskStatus.classList.add('bg-green-500', 'text-white');
-        clockButton.textContent = 'Clock Out';
-        clockButton.classList.remove('bg-green-500');
-        clockButton.classList.add('bg-red-500', 'hover:bg-red-600');
-        clockButton.setAttribute('data-action', 'out');
+    if (showCamera) {
+        const videoElement = document.getElementById('webcam-feed');
+        // Check if stream is already running to avoid unnecessary restarts
+        if (!state.mediaStream) { 
+            startCamera(videoElement);
+        }
     } else {
-        kioskStatus.textContent = 'Clocked Out';
-        kioskStatus.classList.remove('bg-green-500', 'text-white');
-        kioskStatus.classList.add('bg-gray-200');
+        stopCamera();
+    }
+
+    // Update Status Badge and Button
+    if (currentStatus === 'in') {
+        statusBadge.textContent = 'Clocked In';
+        statusBadge.classList.remove('status-out');
+        statusBadge.classList.add('status-in');
+        clockButton.textContent = 'Clock Out';
+        clockButton.classList.remove('btn-success');
+        clockButton.classList.add('btn-danger');
+    } else {
+        statusBadge.textContent = 'Clocked Out';
+        statusBadge.classList.remove('status-in');
+        statusBadge.classList.add('status-out');
         clockButton.textContent = 'Clock In';
-        clockButton.classList.remove('bg-red-500');
-        clockButton.classList.add('bg-green-500', 'hover:bg-green-600');
-        clockButton.setAttribute('data-action', 'in');
+        clockButton.classList.remove('btn-danger');
+        clockButton.classList.add('btn-success');
     }
 
     // --- Render Recent Activity ---
     if (recentActivity) {
-        recentActivity.innerHTML = state.currentUserLogs.map(log => `
+        recentActivity.innerHTML = state.recentLogs.map(log => `
             <li class="flex justify-between items-center py-2 px-3 border-b last:border-b-0">
                 <span class="${log.type === 'in' ? 'text-green-600' : 'text-red-600'} font-semibold">${log.type.toUpperCase()}</span>
                 <span class="text-sm text-gray-600">${formatTimestamp(log.timestamp)}</span>
             </li>
         `).join('');
-        if (state.currentUserLogs.length === 0) {
+        if (state.recentLogs.length === 0) {
             recentActivity.innerHTML = '<li class="p-3 text-center text-gray-500">No recent activity.</li>';
         }
     }
@@ -146,27 +148,29 @@ export function renderEmployeeList() {
     const tableBody = document.getElementById('employee-list-body');
     if (!tableBody || !state.allEmployees) return;
 
-    const employees = Object.values(state.allEmployees).sort((a, b) => a.name.localeCompare(b.name));
+    // Filter out the current user for security/integrity reasons when showing the list
+    const employees = Object.values(state.allEmployees)
+        .filter(emp => emp.uid !== state.currentUser?.uid) 
+        .sort((a, b) => a.name.localeCompare(b.name));
 
     tableBody.innerHTML = employees.map(emp => `
         <tr class="border-b hover:bg-gray-50 ${emp.isAdmin ? 'bg-yellow-50/50' : ''}">
             <td class="px-6 py-3 font-medium text-gray-900">${emp.name}</td>
             <td class="px-6 py-3 text-gray-600">${emp.email}</td>
-            <td class="px-6 py-3 text-sm">${emp.uid}</td>
-            <td class="px-6 py-3 text-sm">
-                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${emp.isAdmin ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}">
-                    ${emp.isAdmin ? 'Admin' : 'Employee'}
-                </span>
-            </td>
             <td class="px-6 py-3 text-sm text-center">
                 <span class="inline-flex items-center">
                     <span class="h-3 w-3 rounded-full mr-2 ${emp.status === 'in' ? 'bg-green-500' : 'bg-red-500'}"></span>
                     ${emp.status.toUpperCase()}
                 </span>
             </td>
-            <td class="px-6 py-3 whitespace-nowrap text-right text-sm font-medium">
-                <button onclick="toggleSettingsModal('${emp.uid}')" class="text-indigo-600 hover:text-indigo-900 mr-3">Edit Settings</button>
-                <button onclick="toggleSignupModal('${emp.uid}')" class="text-blue-600 hover:text-blue-900 mr-3">Edit Name/Email</button>
+            <td class="px-6 py-3 text-sm">
+                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${emp.isAdmin ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}">
+                    ${emp.isAdmin ? 'Admin' : 'Employee'}
+                </span>
+            </td>
+            <td class="px-6 py-3 whitespace-nowrap text-sm font-medium">
+                <button onclick="toggleSettingsModal('${emp.uid}')" class="text-indigo-600 hover:text-indigo-900 mr-3">Settings</button>
+                <button onclick="toggleSignupModal('${emp.uid}')" class="text-blue-600 hover:text-blue-900 mr-3">Edit</button>
                 <button onclick="deleteEmployee('${emp.uid}')" class="text-red-600 hover:text-red-900">Delete</button>
             </td>
         </tr>
@@ -175,22 +179,21 @@ export function renderEmployeeList() {
 
 
 /**
- * Renders the Time Log Management table, filtered by current admin settings.
+ * Filters the main log data based on current admin settings and renders the table.
  */
 export function renderTimeLogList() {
-    const tableBody = document.getElementById('log-list-body');
+    const tableBody = document.getElementById('time-log-list-body');
     const employeeFilter = document.getElementById('filter-employee');
     const startDateFilter = document.getElementById('filter-start-date');
     const endDateFilter = document.getElementById('filter-end-date');
     if (!tableBody || !state.allLogs || !state.allEmployees) return;
 
     // --- Populate Employee Filter Dropdown ---
-    if (employeeFilter && employeeFilter.children.length <= 1) { // Only populate once
+    if (employeeFilter && employeeFilter.children.length <= 1) { 
         const employees = Object.values(state.allEmployees).sort((a, b) => a.name.localeCompare(b.name));
         employeeFilter.innerHTML = '<option value="">All Employees</option>' + employees.map(emp =>
             `<option value="${emp.uid}">${emp.name}</option>`
         ).join('');
-        // Re-set the selected value if it exists in state
         if (state.filterEmployeeUid) {
             employeeFilter.value = state.filterEmployeeUid;
         }
@@ -200,8 +203,11 @@ export function renderTimeLogList() {
     let filteredLogs = state.allLogs;
 
     // Filter by Employee UID
-    if (state.filterEmployeeUid) {
-        filteredLogs = filteredLogs.filter(log => log.employeeUid === state.filterEmployeeUid);
+    const currentFilterUid = employeeFilter?.value || null;
+    updateState({ filterEmployeeUid: currentFilterUid });
+
+    if (currentFilterUid) {
+        filteredLogs = filteredLogs.filter(log => log.employeeUid === currentFilterUid);
     }
 
     // Filter by Date Range
@@ -209,14 +215,12 @@ export function renderTimeLogList() {
     const endDate = endDateFilter.value ? new Date(endDateFilter.value) : null;
 
     if (startDate) {
-        // Start date should include the entire day, so we compare against start of day
         const startTimestamp = startDate.getTime();
         filteredLogs = filteredLogs.filter(log => log.timestamp.toMillis() >= startTimestamp);
     }
 
     if (endDate) {
-        // End date should include the entire day, up to the last millisecond
-        const endTimestamp = endDate.getTime() + 86400000; // Add 24 hours
+        const endTimestamp = endDate.getTime() + 86400000; 
         filteredLogs = filteredLogs.filter(log => log.timestamp.toMillis() < endTimestamp);
     }
     
@@ -247,8 +251,8 @@ export function renderTimeLogList() {
                         </span>`
                     }
                 </td>
-                <td class="px-6 py-3 whitespace-nowrap text-right text-sm font-medium">
-                    <button onclick="toggleLogModal('${log.id}', '${log.type}')" class="text-indigo-600 hover:text-indigo-900 mr-3">Edit</button>
+                <td class="px-6 py-3 whitespace-nowrap text-sm font-medium">
+                    <button onclick="toggleLogModal('${log.id}')" class="text-indigo-600 hover:text-indigo-900 mr-3">Edit</button>
                     <button onclick="handleLogDelete('${log.id}')" class="text-red-600 hover:text-red-900">Delete</button>
                 </td>
             </tr>
@@ -264,7 +268,7 @@ export function renderTimeLogList() {
  * Renders the Audit Log History table.
  */
 export function renderAuditLogList() {
-    const tableBody = document.getElementById('audit-log-body');
+    const tableBody = document.getElementById('audit-log-list-body');
     if (!tableBody || !state.auditLogs || !state.allEmployees) return;
 
     // Sort by timestamp descending (newest first) and take the last 10
@@ -275,7 +279,8 @@ export function renderAuditLogList() {
     tableBody.innerHTML = recentLogs.map(log => {
         const admin = state.allEmployees[log.adminUid] || { name: 'Unknown Admin' };
         const targetEmployee = state.allEmployees[log.targetUid] || { name: 'N/A' };
-        const actionType = log.action === 'EDIT' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800';
+        const actionType = log.action.includes('EDIT') ? 'bg-yellow-100 text-yellow-800' : 
+                         (log.action.includes('DELETE') ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800');
         
         return `
             <tr class="border-b hover:bg-gray-50">
@@ -313,7 +318,7 @@ export function closeLogModal() {
 
 export function showPhotoModal(base64Image) {
     const modal = document.getElementById('photo-modal');
-    const imgEl = document.getElementById('photo-display');
+    const imgEl = document.getElementById('photo-viewer-img');
     if (modal && imgEl) {
         imgEl.src = base64Image;
         modal.classList.remove('hidden');
@@ -348,15 +353,17 @@ export function closeAllModals() {
  * @param {boolean} isError If true, displays in red (error); otherwise, green (success).
  */
 export function setAuthMessage(message, isError = false) {
-    const authStatus = document.getElementById('auth-status');
-    if (authStatus) {
-        authStatus.textContent = message;
-        authStatus.classList.remove('text-green-500', 'text-red-500');
-        authStatus.classList.add(isError ? 'text-red-500' : 'text-green-500');
+    const messageBox = document.getElementById('auth-message-box');
+    if (messageBox) {
+        messageBox.textContent = message;
+        messageBox.classList.remove('hidden', 'bg-green-100', 'bg-red-100', 'text-green-800', 'text-red-800');
+        
+        messageBox.classList.add(isError ? 'bg-red-100' : 'bg-green-100');
+        messageBox.classList.add(isError ? 'text-red-800' : 'text-green-800');
 
-        // Clear the message after a delay
+        // Show for 5 seconds
         setTimeout(() => {
-            renderUI(); // Re-render the UI to restore the default status message
+            messageBox.classList.add('hidden');
         }, 5000);
     }
 }

@@ -1,7 +1,6 @@
 // Filename: kioskLogic.js
-import { state } from './state.js';
-import { ADMIN_EMAIL } from './constants.js';
-import { updateState } from './state.js';
+import { state, updateState } from './state.js';
+import { ADMIN_EMAIL, ENABLE_CAMERA } from './constants.js';
 import { setAuthMessage, closeAllModals, renderUI } from './uiRender.js';
 import { takePhoto, stopCamera } from './utils.js';
 import { getAuth, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -18,7 +17,10 @@ import { collection, doc, setDoc, Timestamp } from "https://www.gstatic.com/fire
  * @param {string} email - User's email address.
  * @param {string} password - User's password.
  */
-export async function handleLogin(email, password) {
+export async function handleLogin() {
+    const email = document.getElementById('login-email').value;
+    const password = document.getElementById('login-password').value;
+
     if (!state.auth) {
         setAuthMessage("Error: Application not fully initialized.", true);
         return;
@@ -45,7 +47,7 @@ export async function handleLogout() {
         stopCamera();
         await signOut(state.auth);
         closeAllModals();
-        navigateTo('login');
+        navigateTo('login_view');
         setAuthMessage("You have been signed out.", false);
     } catch (error) {
         console.error("Logout failed:", error);
@@ -55,15 +57,15 @@ export async function handleLogout() {
 
 /**
  * Changes the current view in the application.
- * @param {string} targetView - The name of the view to switch to ('login', 'kiosk', 'admin_dashboard').
+ * @param {string} targetView - The name of the view to switch to ('login_view', 'kiosk_view', 'admin_dashboard_view').
  */
 export function navigateTo(targetView) {
     try {
-        state.currentView = targetView;
+        updateState({ currentView: targetView });
         renderUI();
 
         // Stop camera if leaving the kiosk view
-        if (targetView !== 'kiosk') {
+        if (targetView !== 'kiosk_view') {
             stopCamera();
         }
 
@@ -87,19 +89,21 @@ export function navigateTo(targetView) {
 
 /**
  * Exports the main clock in/out action handler.
- * @param {HTMLVideoElement} videoElement - The video element for photo capture.
+ * Attaches to the main clock button in index.html.
  */
-export async function handleClockAction(videoElement) {
+export async function handleClockAction() {
     if (!state.db || !state.currentUser) {
         setAuthMessage("System error: User or database not ready.", true);
         return;
     }
 
+    const videoElement = document.getElementById('webcam-feed');
+
     const { status, uid, cameraEnabled } = state.currentUser;
     const type = status === 'in' ? 'out' : 'in';
     let photoData = null;
 
-    if (cameraEnabled && state.ENABLE_CAMERA) {
+    if (cameraEnabled && ENABLE_CAMERA) {
         setAuthMessage(`Capturing photo for clock ${type}...`, false);
         photoData = takePhoto(videoElement);
 
@@ -119,6 +123,7 @@ export async function handleClockAction(videoElement) {
             photo: photoData,
         };
 
+        // Use a Firestore auto-generated ID for new logs
         await setDoc(doc(timecardsCollection), logEntry);
 
         // Update local status for immediate UI feedback

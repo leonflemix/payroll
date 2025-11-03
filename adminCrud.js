@@ -1,9 +1,9 @@
 // Filename: adminCrud.js
 import { state } from './state.js';
-import { renderEmployeeList, renderTimeLogList, renderAuditLogList, closeAllModals, setAuthMessage, closeSignupModal, closeLogModal, closeSettingsModal } from './uiRender.js';
+import { renderEmployeeList, renderTimeLogList, renderAuditLogList, closeAllModals, setAuthMessage, closeSignupModal, closeLogModal, closeSettingsModal, showPhotoModal } from './uiRender.js';
 import { writeAuditLog, updateEmployeeStatusAfterLogEdit } from './firebase.js';
 import { formatTotalHours, formatTime } from './utils.js';
-import { createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { createUserWithEmailAndPassword, deleteUser } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { doc, setDoc, deleteDoc, collection, getDocs, Timestamp, query, where, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 /*
@@ -33,7 +33,7 @@ export function toggleSignupModal(uid) {
         document.getElementById('signup-title').textContent = 'Edit Employee Profile';
         document.getElementById('signup-name').value = emp.name;
         document.getElementById('signup-email').value = emp.email;
-        document.getElementById('signup-uid').value = emp.uid; // Hidden field to track the user being edited
+        document.getElementById('signup-uid').value = uid; // Hidden field to track the user being edited
         document.getElementById('signup-password-group').classList.add('hidden');
         document.getElementById('signup-password-input').required = false;
     }
@@ -68,6 +68,11 @@ export async function handleEmployeeSignup(event) {
         }
     } else {
         // --- Sign Up New Employee (Requires Auth + Firestore Doc) ---
+        if (password.length < 6) {
+             setAuthMessage("Password must be at least 6 characters.", true);
+             return;
+        }
+
         try {
             const userCredential = await createUserWithEmailAndPassword(state.auth, email, password);
             const newUid = userCredential.user.uid;
@@ -168,8 +173,12 @@ export async function deleteEmployee(uid) {
     if (!employee) return;
 
     try {
+        // 1. Delete Firestore Document
         const employeeRef = doc(state.db, state.employee_path, uid);
         await deleteDoc(employeeRef);
+
+        // 2. Delete Auth User (Optional but good practice; requires admin SDK on backend, so we skip for frontend)
+        // await deleteUser(uid); // This requires Admin SDK. We skip for simplicity.
 
         await writeAuditLog('DELETE_PROFILE', `Deleted employee profile for ${employee.name}`, uid, JSON.stringify(employee));
         setAuthMessage(`Employee ${employee.name} profile deleted.`, false);
@@ -188,29 +197,28 @@ export async function deleteEmployee(uid) {
 /**
  * Toggles the Log Edit/Add modal.
  * @param {string} [logId] - The ID of the log to edit.
- * @param {string} [logType] - The type ('in' or 'out') of the log to edit.
  */
-export function toggleLogModal(logId, logType) {
+export function toggleLogModal(logId) {
     const modal = document.getElementById('log-modal');
     const form = document.getElementById('log-edit-form');
-    if (!modal || !form) return;
+    if (!modal || !form || !state.allEmployees) return;
 
-    // Reset form and set to New Log mode by default
+    // Reset form
     form.reset();
     document.getElementById('log-title').textContent = 'Add New Time Log';
     document.getElementById('log-id').value = '';
     document.getElementById('log-employee-select').disabled = false;
     document.getElementById('log-photo-group').classList.add('hidden');
 
-    // Populate Employee Select if empty
+    // Populate Employee Select
     const employeeSelect = document.getElementById('log-employee-select');
-    if (employeeSelect.children.length === 0 || employeeSelect.children.length === 1 && employeeSelect.children[0].value === "") {
+    if (employeeSelect.children.length === 0 || employeeSelect.children[0].value === "") {
         employeeSelect.innerHTML = Object.values(state.allEmployees).map(emp =>
             `<option value="${emp.uid}">${emp.name}</option>`
         ).join('');
     }
 
-    if (logId && logType) {
+    if (logId) {
         // --- Edit Existing Log ---
         const log = state.allLogs.find(l => l.id === logId);
         if (!log) return;
@@ -229,11 +237,14 @@ export function toggleLogModal(logId, logType) {
 
         // Show photo controls if photo exists
         const photoGroup = document.getElementById('log-photo-group');
+        const viewPhotoBtn = document.getElementById('view-log-photo');
         if (log.photo) {
             photoGroup.classList.remove('hidden');
-            document.getElementById('view-log-photo').setAttribute('onclick', `showPhotoModal('${log.photo}')`);
+            // We use onclick attribute because it's safer in this single-file env
+            viewPhotoBtn.setAttribute('onclick', `showPhotoModal('${log.photo}')`);
         } else {
             photoGroup.classList.add('hidden');
+            viewPhotoBtn.removeAttribute('onclick');
         }
     } else {
         // Default values for new log
@@ -299,7 +310,8 @@ export async function handleLogSave(event) {
                 photo: null // Admin added logs do not have a photo
             };
 
-            const docRef = await setDoc(doc(logsCollection), newLog);
+            // Use setDoc with doc() to let Firestore generate the ID
+            await setDoc(doc(logsCollection), newLog);
 
             await writeAuditLog('ADD_LOG', `New log added by Admin: ${type} at ${formatTimestamp(newTimestamp)}`, employeeUid);
             
@@ -347,7 +359,6 @@ export async function handleLogDelete(logId) {
 /**
  * Generates and downloads a CSV file based on the currently filtered logs.
  * Includes shift calculations and overtime logic.
- * @param {boolean} applyDeductions - Whether to apply automated break deductions.
  */
 export async function generatePayrollReport() {
     closeAllModals();
@@ -359,18 +370,10 @@ export async function generatePayrollReport() {
 
     const applyDeductions = document.getElementById('payroll-break-deductions').checked;
 
-    // Use the current filtered and sorted logs from the rendering logic
-    const tableBody = document.getElementById('log-list-body');
-    if (!tableBody) {
-        setAuthMessage("Error: Log list table not found.", true);
-        return;
-    }
-
-    // Since renderTimeLogList filters, we re-run the filtering logic here for consistency
-    const employeeFilter = document.getElementById('filter-employee');
     const startDateFilter = document.getElementById('filter-start-date');
     const endDateFilter = document.getElementById('filter-end-date');
 
+    // Use the current filtered and sorted logs from the rendering logic
     let filteredLogs = state.allLogs;
 
     // Filter by Employee UID
@@ -413,7 +416,7 @@ export async function generatePayrollReport() {
 
                 const employee = state.allEmployees[current.employeeUid];
                 const maxDailyHours = employee?.maxDailyHours || 8;
-                const breakDeductionMins = employee?.breakDeductionMins || 0;
+                const breakDeductionMins = (applyDeductions ? employee?.breakDeductionMins : 0) || 0; // Only deduct if toggled
 
                 shifts.push({
                     employeeUid: current.employeeUid,
@@ -443,57 +446,55 @@ export async function generatePayrollReport() {
 
     for (const shift of shifts) {
         let grossHours = shift.shiftHours;
+        
+        // 2a. Apply Break Deduction (if applicable and shift > 6 hours)
+        const breakTriggerHours = 6;
+        const breakDeductionHours = (shift.breakDeductionMins > 0 && grossHours > breakTriggerHours) ? (shift.breakDeductionMins / 60) : 0;
+        let netHours = grossHours - breakDeductionHours;
+
         let regularHours = 0;
         let dailyOvertime = 0;
         let weeklyOvertime = 0;
-
-        // 2a. Apply Break Deduction (if applicable and shift > 6 hours)
-        const breakDeductionHours = (applyDeductions && grossHours > (6 + (shift.breakDeductionMins / 60))) ? (shift.breakDeductionMins / 60) : 0;
-        let netHours = grossHours - breakDeductionHours;
 
         // 2b. Daily Overtime Calculation
         const dailyLimit = shift.maxDailyHours;
         if (netHours > dailyLimit) {
             dailyOvertime = netHours - dailyLimit;
-            netHours = dailyLimit;
+            netHours = dailyLimit; // Remaining hours for weekly calculation
         }
 
         // 2c. Weekly Overtime (needs weekly context)
-        // Determine the ISO Week/Year for accurate tracking
+        // Determine the ISO Week/Year for accurate tracking (Simplified to start of week)
         const shiftDate = shift.in;
-        const year = shiftDate.getFullYear();
         const startOfWeek = new Date(shiftDate);
         startOfWeek.setDate(shiftDate.getDate() - (shiftDate.getDay() === 0 ? 6 : shiftDate.getDay() - 1)); // Adjust to Monday
         startOfWeek.setHours(0, 0, 0, 0);
-        const weekKey = `${shift.employeeUid}-${year}-${startOfWeek.getMonth() + 1}-${startOfWeek.getDate()}`;
+        const weekKey = `${shift.employeeUid}-${startOfWeek.getTime()}`; // Unique key per employee/week
 
         if (!weeklyHours[weekKey]) {
-            weeklyHours[weekKey] = 0;
+            weeklyHours[weekKey] = { totalHours: 0, regularCapacity: 40 };
         }
 
-        const remainingRegularCapacity = 40 - weeklyHours[weekKey];
+        const currentWeeklyTotal = weeklyHours[weekKey].totalHours;
+        const remainingRegularCapacity = weeklyHours[weekKey].regularCapacity - currentWeeklyTotal;
         
         if (remainingRegularCapacity > 0) {
             // Hours that fit into regular 40-hour week
             const hoursForRegular = Math.min(netHours, remainingRegularCapacity);
             regularHours = hoursForRegular;
-            weeklyHours[weekKey] += hoursForRegular;
 
             const hoursRemainingAfterRegular = netHours - hoursForRegular;
             if (hoursRemainingAfterRegular > 0) {
                 weeklyOvertime = hoursRemainingAfterRegular;
-                weeklyHours[weekKey] += hoursRemainingAfterRegular; // Track total weekly OT hours
             }
         } else {
-            // All net hours are weekly overtime
+            // All remaining net hours are weekly overtime
             weeklyOvertime = netHours;
-            weeklyHours[weekKey] += netHours;
         }
+
+        // Update the weekly total hours tracker
+        weeklyHours[weekKey].totalHours += regularHours + weeklyOvertime;
         
-        // Final Regular Hours is the portion of netHours that wasn't Daily or Weekly OT
-        regularHours = netHours - weeklyOvertime;
-
-
         finalReport.push({
             name: shift.name,
             date: shift.date,
@@ -501,7 +502,7 @@ export async function generatePayrollReport() {
             outTime: formatTime(shift.out),
             grossHours: formatTotalHours(shift.shiftHours),
             breakDeduction: formatTotalHours(breakDeductionHours),
-            netHours: formatTotalHours(grossHours - breakDeductionHours),
+            netHours: formatTotalHours(shift.shiftHours - breakDeductionHours),
             regularHours: formatTotalHours(regularHours),
             dailyOvertime: formatTotalHours(dailyOvertime),
             weeklyOvertime: formatTotalHours(weeklyOvertime),
@@ -537,14 +538,4 @@ export async function generatePayrollReport() {
         document.body.removeChild(link);
     }
     setAuthMessage("Payroll report generated successfully.", false);
-}
-
-// Option 1: Named export
-export const updateEmployee = (employeeData) => {
-    // Your update employee implementation
-};
-
-// OR Option 2: Default export
-export default function updateEmployee(employeeData) {
-    // Your update employee implementation
 }

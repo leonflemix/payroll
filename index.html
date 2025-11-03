@@ -112,8 +112,10 @@
             <div id="employee-management" class="tab-content card p-6">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-2xl font-semibold text-gray-800">Employees</h2>
-                    <button onclick="showSignupModal()" class="btn-primary px-3 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-plus mr-1"></i> Sign Up Employee</button>
+                    <button onclick="toggleSignupModal()" class="btn-primary px-3 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-plus mr-1"></i> Sign Up Employee</button>
                 </div>
+                <!-- Admin Error Message -->
+                <div id="admin-error-message" class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4 hidden font-medium" role="alert"></div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200 log-table">
                         <thead class="bg-gray-50">
@@ -160,8 +162,8 @@
 
                 <!-- Payroll Settings Toggle -->
                 <div class="flex items-center space-x-2 mb-4">
-                    <input type="checkbox" id="apply-break-deductions" checked class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
-                    <label for="apply-break-deductions" class="text-sm font-medium text-gray-700">Apply Per-Employee Break Deductions</label>
+                    <input type="checkbox" id="payroll-break-deductions" checked class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                    <label for="payroll-break-deductions" class="text-sm font-medium text-gray-700">Apply Per-Employee Break Deductions</label>
                 </div>
 
                 <!-- Log Table -->
@@ -211,105 +213,106 @@
     <!-- MODALS -->
     <!-- --------------------------------- -->
 
-    <!-- Modal: Employee Sign Up -->
+    <!-- Modal: Employee Sign Up / Edit Profile -->
     <div id="employee-signup-modal" class="modal-overlay fixed inset-0 flex items-center justify-center p-4 hidden">
         <div class="card p-6 w-full max-w-md">
-            <h2 class="text-2xl font-bold mb-4">Sign Up New Employee</h2>
-            <div id="signup-message" class="mb-4 p-3 rounded-lg text-sm hidden"></div>
-            <div class="space-y-4">
-                <input type="text" id="signup-name" placeholder="Full Name" class="w-full px-3 py-2 border rounded-lg">
-                <input type="email" id="signup-email" placeholder="Email (Must be unique)" class="w-full px-3 py-2 border rounded-lg">
-                <input type="password" id="signup-password" placeholder="Password (Min 6 chars)" class="w-full px-3 py-2 border rounded-lg">
-                
-                <div class="flex items-center space-x-4">
-                    <label for="signup-is-admin" class="text-sm font-medium text-gray-700">Is Admin?</label>
-                    <input type="checkbox" id="signup-is-admin" class="rounded text-indigo-600">
+            <h2 id="signup-title" class="text-2xl font-bold mb-4">Sign Up New Employee</h2>
+            <form id="employee-signup-form" onsubmit="handleEmployeeSignup(event)">
+                <div class="space-y-4">
+                    <input type="hidden" id="signup-uid">
+                    <input type="text" id="signup-name" required placeholder="Full Name" class="w-full px-3 py-2 border rounded-lg">
+                    <input type="email" id="signup-email" required placeholder="Email (Must be unique)" class="w-full px-3 py-2 border rounded-lg">
+                    
+                    <div id="signup-password-group">
+                        <input type="password" id="signup-password-input" required placeholder="Password (Min 6 chars)" class="w-full px-3 py-2 border rounded-lg">
+                    </div>
+                    
+                    <div class="flex justify-end space-x-3 mt-6">
+                        <button type="button" onclick="closeSignupModal()" class="btn-secondary px-4 py-2 rounded-lg">Cancel</button>
+                        <button type="submit" class="btn-primary px-4 py-2 rounded-lg">Save Profile</button>
+                    </div>
                 </div>
-                
-                <div class="flex justify-end space-x-3 mt-6">
-                    <button onclick="closeSignupModal()" class="btn-secondary px-4 py-2 rounded-lg">Cancel</button>
-                    <button onclick="handleSignup()" class="btn-primary px-4 py-2 rounded-lg">Create Employee</button>
-                </div>
-            </div>
+            </form>
         </div>
     </div>
 
     <!-- Modal: Edit Employee Settings -->
     <div id="employee-settings-modal" class="modal-overlay fixed inset-0 flex items-center justify-center p-4 hidden">
         <div class="card p-6 w-full max-w-md">
-            <h2 class="text-2xl font-bold mb-4">Edit Employee Settings</h2>
-            <div id="settings-message" class="mb-4 p-3 rounded-lg text-sm hidden"></div>
-            <div class="space-y-4">
-                <input type="hidden" id="edit-employee-uid">
-                <input type="text" id="edit-employee-name" placeholder="Full Name" class="w-full px-3 py-2 border rounded-lg">
-                <input type="email" id="edit-employee-email" placeholder="Email (Read-only)" disabled class="w-full px-3 py-2 border rounded-lg bg-gray-100">
+            <h2 id="settings-title" class="text-2xl font-bold mb-4">Edit Employee Settings</h2>
+            <form id="employee-settings-form" onsubmit="handleEmployeeSettings(event)">
+                <div class="space-y-4">
+                    <input type="hidden" id="settings-uid">
 
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label for="edit-max-daily-hours" class="block text-sm font-medium text-gray-700">Max Daily Regular Hrs</label>
-                        <input type="number" id="edit-max-daily-hours" class="w-full px-3 py-2 border rounded-lg" min="1" step="0.5">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label for="settings-max-hours" class="block text-sm font-medium text-gray-700">Max Daily Regular Hrs</label>
+                            <input type="number" id="settings-max-hours" required class="w-full px-3 py-2 border rounded-lg" min="1" step="0.5">
+                        </div>
+                        <div>
+                            <label for="settings-break-mins" class="block text-sm font-medium text-gray-700">Break Deduction (Mins)</label>
+                            <input type="number" id="settings-break-mins" required class="w-full px-3 py-2 border rounded-lg" min="0" step="1">
+                        </div>
                     </div>
-                    <div>
-                        <label for="edit-break-deduction" class="block text-sm font-medium text-gray-700">Break Deduction (Mins)</label>
-                        <input type="number" id="edit-break-deduction" class="w-full px-3 py-2 border rounded-lg" min="0" step="1">
+
+                    <div class="flex items-center space-x-4">
+                        <label for="settings-camera" class="text-sm font-medium text-gray-700">Camera Enabled?</label>
+                        <input type="checkbox" id="settings-camera" class="rounded text-indigo-600">
+                    </div>
+
+                    <div class="flex items-center space-x-4">
+                        <label for="settings-admin" class="text-sm font-medium text-gray-700">Is Admin?</label>
+                        <input type="checkbox" id="settings-admin" class="rounded text-indigo-600">
+                    </div>
+                    
+                    <div class="flex justify-end space-x-3 mt-6">
+                        <button type="button" onclick="closeSettingsModal()" class="btn-secondary px-4 py-2 rounded-lg">Cancel</button>
+                        <button type="submit" class="btn-primary px-4 py-2 rounded-lg">Save Settings</button>
                     </div>
                 </div>
-
-                <div class="flex items-center space-x-4">
-                    <label for="edit-camera-enabled" class="text-sm font-medium text-gray-700">Camera Enabled?</label>
-                    <input type="checkbox" id="edit-camera-enabled" class="rounded text-indigo-600">
-                </div>
-
-                <div class="flex items-center space-x-4">
-                    <label for="edit-is-admin" class="text-sm font-medium text-gray-700">Is Admin?</label>
-                    <input type="checkbox" id="edit-is-admin" class="rounded text-indigo-600">
-                </div>
-                
-                <div class="flex justify-end space-x-3 mt-6">
-                    <button onclick="closeSettingsModal()" class="btn-secondary px-4 py-2 rounded-lg">Cancel</button>
-                    <button onclick="handleSettingsSave()" class="btn-primary px-4 py-2 rounded-lg">Save Changes</button>
-                </div>
-            </div>
+            </form>
         </div>
     </div>
 
-    <!-- Modal: Edit Time Log -->
+    <!-- Modal: Edit Time Log / Add Log -->
     <div id="log-modal" class="modal-overlay fixed inset-0 flex items-center justify-center p-4 hidden">
         <div class="card p-6 w-full max-w-md">
-            <h2 class="text-2xl font-bold mb-4">Edit Time Entry</h2>
-            <div id="log-message" class="mb-4 p-3 rounded-lg text-sm hidden"></div>
-            <input type="hidden" id="edit-log-id">
-            <div class="space-y-4">
-                <input type="text" id="edit-log-employee" disabled class="w-full px-3 py-2 border rounded-lg bg-gray-100 font-semibold">
-                
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label for="edit-log-date" class="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                        <input type="date" id="edit-log-date" class="w-full px-3 py-2 border rounded-lg">
+            <h2 id="log-title" class="text-2xl font-bold mb-4">Edit Time Entry</h2>
+            <form id="log-edit-form" onsubmit="handleLogSave(event)">
+                <input type="hidden" id="log-id">
+                <div class="space-y-4">
+                    <div id="log-employee-group">
+                        <label for="log-employee-select" class="block text-sm font-medium text-gray-700 mb-1">Employee</label>
+                        <select id="log-employee-select" required class="w-full px-3 py-2 border rounded-lg">
+                            <!-- Populated dynamically -->
+                        </select>
                     </div>
-                    <div>
-                        <label for="edit-log-time" class="block text-sm font-medium text-gray-700 mb-1">Time</label>
-                        <input type="time" id="edit-log-time" step="1" class="w-full px-3 py-2 border rounded-lg">
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label for="log-datetime" class="block text-sm font-medium text-gray-700 mb-1">Date & Time</label>
+                            <input type="datetime-local" id="log-datetime" required step="1" class="w-full px-3 py-2 border rounded-lg">
+                        </div>
+                        <div>
+                            <label for="log-type" class="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                            <select id="log-type" required class="w-full px-3 py-2 border rounded-lg">
+                                <option value="in">Clock In</option>
+                                <option value="out">Clock Out</option>
+                            </select>
+                        </div>
                     </div>
-                </div>
+                    
+                    <div id="log-photo-group" class="flex justify-between items-center pt-2 hidden">
+                        <button type="button" id="view-log-photo" onclick="showPhotoModal('')" class="btn-secondary px-4 py-2 rounded-lg text-sm"><i class="fas fa-camera mr-1"></i> View Photo</button>
+                        <input type="hidden" id="log-photo-data">
+                    </div>
 
-                <div>
-                    <label for="edit-log-type" class="block text-sm font-medium text-gray-700 mb-1">Type</label>
-                    <select id="edit-log-type" class="w-full px-3 py-2 border rounded-lg">
-                        <option value="in">Clock In</option>
-                        <option value="out">Clock Out</option>
-                    </select>
-                </div>
-                
-                <div class="flex justify-between items-center pt-2">
-                    <button onclick="showPhotoModal(document.getElementById('edit-log-photo').value)" class="btn-secondary px-4 py-2 rounded-lg text-sm"><i class="fas fa-camera mr-1"></i> View Photo</button>
-                    <input type="hidden" id="edit-log-photo">
-                    <div class="flex space-x-3">
-                        <button onclick="closeLogModal()" class="btn-secondary px-4 py-2 rounded-lg">Cancel</button>
-                        <button onclick="handleLogSave()" class="btn-primary px-4 py-2 rounded-lg">Save Changes</button>
+                    <div class="flex justify-end space-x-3 mt-6">
+                        <button type="button" onclick="closeLogModal()" class="btn-secondary px-4 py-2 rounded-lg">Cancel</button>
+                        <button type="submit" class="btn-primary px-4 py-2 rounded-lg">Save Changes</button>
                     </div>
                 </div>
-            </div>
+            </form>
         </div>
     </div>
 

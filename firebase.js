@@ -1,13 +1,11 @@
 // Filename: firebase.js
-import { state } from './state.js';
+import { state, updateState, setDb, setAuth, setUserId, setAdminError } from './state.js';
 import { FIREBASE_CONFIG, PUBLIC_PATH_ROOT } from './constants.js';
 import { navigateTo } from './kioskLogic.js';
-import { setDb, setAuth, setUserId, updateState, setAdminError } from './state.js';
 import { renderUI, setAuthMessage } from './uiRender.js';
-import { formatTotalHours } from './utils.js';
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, doc, getDoc, collection, query, where, onSnapshot, Timestamp, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { getFirestore, doc, getDoc, collection, query, where, onSnapshot, Timestamp, updateDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 /*
 |--------------------------------------------------------------------------
@@ -44,7 +42,7 @@ export async function initFirebase() {
                 // User is signed out (or initial state)
                 state.currentUser = null;
                 setUserId(null);
-                navigateTo('login');
+                navigateTo('login_view');
                 renderUI();
             }
         });
@@ -74,19 +72,18 @@ export async function fetchAndSetCurrentUser(user) {
 
         if (docSnap.exists()) {
             const userData = { ...docSnap.data(), uid: user.uid };
-            state.currentUser = userData;
+            updateState({ currentUser: userData });
             setUserId(user.uid);
 
             if (userData.isAdmin) {
                 console.warn("ADMIN LISTENERS SKIPPED: Testing for instant failure.");
-                // navigateTo('admin_dashboard'); // Navigated by renderUI
-                listenToAllData();
+                // Listeners are conditionally restored if the bypass is removed
+                // listenToAllData();
+                navigateTo('admin_dashboard_view');
             } else {
                 listenToUserLogs(user.uid);
+                navigateTo('kiosk_view');
             }
-
-            // Navigate based on role and render the UI immediately
-            navigateTo(userData.isAdmin ? 'admin_dashboard' : 'kiosk');
             renderUI();
 
         } else {
@@ -110,14 +107,15 @@ export async function updateEmployeeStatusAfterLogEdit(employeeUid) {
 
     try {
         const logsCollection = collection(state.db, state.timecards_logs_path);
+        // Query ordered by timestamp to find the absolute latest punch
         const q = query(
             logsCollection,
             where("employeeUid", "==", employeeUid),
-            // Use client-side sort for simplicity and to avoid index issues
+            // Re-adding orderBy, requires index for full performance
+            // orderBy("timestamp", "desc")
         );
 
         const querySnapshot = await getDocs(q);
-        let latestLog = null;
         let logsArray = [];
 
         querySnapshot.forEach(doc => {
@@ -127,8 +125,10 @@ export async function updateEmployeeStatusAfterLogEdit(employeeUid) {
         // Client-side sort to find the latest log
         logsArray.sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis());
 
-        latestLog = logsArray.length > 0 ? logsArray[0] : null;
+        const latestLog = logsArray.length > 0 ? logsArray[0] : null;
 
+        // Status logic: if last punch was 'in', next action should be 'out' (status='in'), and vice versa.
+        // If no logs, status is 'out'.
         const newStatus = latestLog ? (latestLog.type === 'in' ? 'out' : 'in') : 'out';
 
         const employeeRef = doc(state.db, state.employee_path, employeeUid);
@@ -136,7 +136,6 @@ export async function updateEmployeeStatusAfterLogEdit(employeeUid) {
 
     } catch (error) {
         console.error("Error updating employee status after log edit:", error);
-        // Do not fail the entire app, just log the status update failure
     }
 }
 
@@ -154,7 +153,6 @@ export function listenToUserLogs(uid) {
     if (!state.db || !uid) return;
 
     try {
-        // Query to get only the current user's logs
         const logsCollection = collection(state.db, state.timecards_logs_path);
         const logsQuery = query(
             logsCollection,
@@ -168,7 +166,7 @@ export function listenToUserLogs(uid) {
             // Client-side sort by timestamp descending (newest first)
             logs.sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis());
 
-            state.recentLogs = logs.slice(0, 5);
+            updateState({ recentLogs: logs.slice(0, 5) });
             renderUI();
         }, (error) => {
             console.error(`[FATAL KIOSK LISTENER ERROR - User Logs for ${uid}]:`, error);
@@ -182,6 +180,7 @@ export function listenToUserLogs(uid) {
 
 /**
  * Initializes all admin-level real-time listeners for dashboard data.
+ * NOTE: All listeners are temporarily simplified (no orderBy) to bypass index errors.
  */
 export function listenToAllData() {
     if (!state.db) return;
@@ -194,10 +193,10 @@ export function listenToAllData() {
             snapshot.docs.forEach(doc => {
                 employees[doc.id] = { id: doc.id, ...doc.data() };
             });
-            state.allEmployees = employees;
+            updateState({ allEmployees: employees, adminError: null });
             renderUI();
         }, (error) => {
-            state.adminError = "Employee Load Failed: " + error.message;
+            setAdminError("Employee Load Failed: " + error.message);
             console.error(`[FATAL ADMIN LISTENER ERROR - All Employees]:`, error);
             renderUI();
         });
@@ -206,11 +205,10 @@ export function listenToAllData() {
         // --- 2. All Time Logs Listener ---
         console.log(`[DEBUG]: Attempting to listen to ALL logs at path: ${state.timecards_logs_path}`);
         onSnapshot(collection(state.db, state.timecards_logs_path), (snapshot) => {
-            state.allLogs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            state.adminError = null; // Clear error if this succeeds
+            updateState({ allLogs: snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })), adminError: null });
             renderUI();
         }, (error) => {
-            state.adminError = "Time Log Load Failed: " + error.message;
+            setAdminError("Time Log Load Failed: " + error.message);
             console.error(`[FATAL ADMIN LISTENER ERROR - All Logs]:`, error);
             renderUI();
         });
@@ -223,18 +221,17 @@ export function listenToAllData() {
             const auditLogs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             // Client-side sort by timestamp descending (newest first)
             auditLogs.sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis());
-            state.auditLogs = auditLogs.slice(0, 10);
-            state.adminError = null; // Clear error if this succeeds
+            updateState({ auditLogs: auditLogs.slice(0, 10), adminError: null });
             renderUI();
         }, (error) => {
-            state.adminError = "Audit Log Load Failed: " + error.message;
+            setAdminError("Audit Log Load Failed: " + error.message);
             console.error(`[FATAL ADMIN LISTENER ERROR - Audit Logs]:`, error);
             renderUI();
         });
 
     } catch (e) {
         console.error("Error initializing Admin listeners:", e);
-        state.adminError = "Critical data listener initialization failed.";
+        setAdminError("Critical data listener initialization failed.");
         renderUI();
     }
 }
@@ -253,7 +250,7 @@ export function listenToAllData() {
  * @param {string} [oldData] - Optional JSON string of old data.
  */
 export async function writeAuditLog(action, details, targetUid, oldData = null) {
-    if (!state.db) return;
+    if (!state.db || !state.currentUser) return;
 
     try {
         const auditCollection = collection(state.db, state.audit_logs_path);

@@ -1,6 +1,6 @@
 // Filename: utils.js
 import { state } from './state.js';
-import { renderUI } from './uiRender.js';
+import { ENABLE_CAMERA } from './constants.js';
 
 /*
 |--------------------------------------------------------------------------
@@ -13,7 +13,7 @@ import { renderUI } from './uiRender.js';
  * @param {HTMLVideoElement} videoElement - The video element to display the stream.
  */
 export function startCamera(videoElement) {
-    if (!state.ENABLE_CAMERA) return;
+    if (!ENABLE_CAMERA) return;
     
     try {
         if (state.mediaStream) {
@@ -32,7 +32,6 @@ export function startCamera(videoElement) {
             .catch(err => {
                 console.error("Error accessing camera:", err);
                 state.mediaStream = null;
-                // Update UI to reflect camera failure, if necessary
             });
     } catch (e) {
         console.error("Camera access failed in try-catch:", e);
@@ -197,54 +196,4 @@ export function formatTotalHours(hours) {
  */
 export function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-/**
- * Converts PCM audio data to WAV format.
- * @param {Float32Array} pcmData - The PCM data to convert.
- * @returns {ArrayBuffer} - The WAV file data as an ArrayBuffer.
- */
-export default function pcmToWav(pcmData) {
-    // WAV file header fields
-    const sampleRate = 44100;
-    const numChannels = 1;
-    const bytesPerSample = 2;
-    const blockAlign = numChannels * bytesPerSample;
-    const byteRate = sampleRate * blockAlign;
-    const dataSize = pcmData.length * bytesPerSample;
-    const fileSize = 44 + dataSize; // 44 bytes for WAV header
-
-    // Create an ArrayBuffer for the WAV file
-    const wavBuffer = new ArrayBuffer(fileSize);
-    const view = new DataView(wavBuffer);
-
-    // Write the WAV file header
-    let offset = 0;
-    function writeString(str) {
-        for (let i = 0; i < str.length; i++) {
-            view.setUint8(offset++, str.charCodeAt(i) & 0xFF);
-        }
-    }
-    writeString('RIFF');                        // ChunkID
-    view.setUint32(4, fileSize - 8, true);    // ChunkSize
-    writeString('WAVE');                        // Format
-    writeString('fmt ');                       // Subchunk1ID
-    view.setUint32(16, 16, true);             // Subchunk1Size (16 for PCM)
-    view.setUint16(20, 1, true);              // AudioFormat (1 for PCM)
-    view.setUint16(22, numChannels, true);    // NumChannels
-    view.setUint32(24, sampleRate, true);     // SampleRate
-    view.setUint32(28, byteRate, true);       // ByteRate
-    view.setUint16(32, blockAlign, true);     // BlockAlign
-    view.setUint16(34, bytesPerSample * 8, true); // BitsPerSample
-    writeString('data');                       // Subchunk2ID
-    view.setUint32(40, dataSize, true);       // Subchunk2Size
-
-    // Write the PCM data
-    offset = 44;
-    for (let i = 0; i < pcmData.length; i++) {
-        view.setInt16(offset, pcmData[i] * 32767, true);
-        offset += 2;
-    }
-
-    return wavBuffer;
 }
