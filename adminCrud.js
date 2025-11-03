@@ -538,3 +538,13 @@ export async function generatePayrollReport() {
     }
     setAuthMessage("Payroll report generated successfully.", false);
 }
+
+// Option 1: Named export
+export const updateEmployee = (employeeData) => {
+    // Your update employee implementation
+};
+
+// OR Option 2: Default export
+export default function updateEmployee(employeeData) {
+    // Your update employee implementation
+}
