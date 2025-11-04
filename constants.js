@@ -22,7 +22,12 @@ export const FIREBASE_CONFIG = {
 |--------------------------------------------------------------------------
 */
 
-export const PUBLIC_PATH_ROOT = `artifacts`;
+const appId = FIREBASE_CONFIG.projectId; 
+const BASE_PATH = `artifacts/${appId}/public/data`;
+
+export const timecards_employees_path = `${BASE_PATH}/employees`;
+export const timecards_logs_path = `${BASE_PATH}/time_logs`;
+export const timecards_audit_logs_path = `${BASE_PATH}/audit_logs`;
 
 /*
 |--------------------------------------------------------------------------
@@ -30,8 +35,9 @@ export const PUBLIC_PATH_ROOT = `artifacts`;
 |--------------------------------------------------------------------------
 */
 
-// Set to true to enable the camera stream and photo verification on clock actions.
-export const ENABLE_CAMERA = false; 
+// GLOBAL SETTING: Set to true to enable the camera stream and photo verification on clock actions.
+// This must be TRUE to enable per-employee camera control.
+export const ENABLE_CAMERA = true; 
 
 // Email used for the Admin account (needed for UI hint/logic checks)
 export const ADMIN_EMAIL = 'admin@kiosk.com';
