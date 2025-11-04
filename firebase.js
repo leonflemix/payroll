@@ -1,6 +1,6 @@
 // Filename: firebase.js
 import { state, updateState, setDb, setAuth, setUserId, setAdminError } from './state.js';
-import { FIREBASE_CONFIG, PUBLIC_PATH_ROOT } from './constants.js';
+import { FIREBASE_CONFIG, BASE_PATH } from './constants.js'; // <-- CORRECTED: Imported BASE_PATH
 import { navigateTo } from './kioskLogic.js';
 import { renderUI, setAuthMessage } from './uiRender.js';
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -24,8 +24,8 @@ export async function initFirebase() {
         setAuth(getAuth(app));
 
         // Define Firestore Collection Paths based on Project ID
-        const appId = FIREBASE_CONFIG.projectId || 'default-app-id';
-        const pathRoot = `${PUBLIC_PATH_ROOT}/${appId}/public/data`;
+        // The path structure is now correctly set here using the exported BASE_PATH
+        const pathRoot = BASE_PATH; 
         updateState({
             employee_path: `${pathRoot}/employees`,
             timecards_logs_path: `${pathRoot}/time_logs`,
