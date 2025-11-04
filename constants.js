@@ -23,11 +23,15 @@ export const FIREBASE_CONFIG = {
 */
 
 const appId = FIREBASE_CONFIG.projectId; 
-const BASE_PATH = `artifacts/${appId}/public/data`;
+const BASE_PATH_ROOT = `artifacts/${appId}/public/data`; // Renamed and exported
 
-export const timecards_employees_path = `${BASE_PATH}/employees`;
-export const timecards_logs_path = `${BASE_PATH}/time_logs`;
-export const timecards_audit_logs_path = `${BASE_PATH}/audit_logs`;
+export const timecards_employees_path = `${BASE_PATH_ROOT}/employees`;
+export const timecards_logs_path = `${BASE_PATH_ROOT}/time_logs`;
+export const timecards_audit_logs_path = `${BASE_PATH_ROOT}/audit_logs`;
+
+// Export the path root needed by firebase.js
+export const BASE_PATH = BASE_PATH_ROOT;
+
 
 /*
 |--------------------------------------------------------------------------
