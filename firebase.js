@@ -5,7 +5,7 @@ import { navigateTo } from './kioskLogic.js';
 import { renderUI, setAuthMessage } from './uiRender.js';
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, doc, getDoc, collection, query, where, onSnapshot, Timestamp, updateDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { getFirestore, doc, getDoc, collection, query, where, onSnapshot, Timestamp, updateDoc, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 /*
 |--------------------------------------------------------------------------
