@@ -1,7 +1,7 @@
 // Filename: uiRender.js
 import { state, updateState } from './state.js';
-import { handleClockAction, handleLogin, handleLogout, navigateTo } from './kioskLogic.js';
 import { handleEmployeeSignup, handleEmployeeSettings, deleteEmployee, handleLogSave, handleLogDelete, generatePayrollReport, toggleSignupModal, toggleSettingsModal, toggleLogModal } from './adminCrud.js';
+import { handleClockAction, handleLogin, handleLogout, navigateTo } from './kioskLogic.js';
 import { formatTimestamp, base64ToArrayBuffer, formatTotalHours, startCamera, stopCamera } from './utils.js';
 
 /*
@@ -47,20 +47,9 @@ export function renderUI() {
             }
         }
 
-        // --- 3. Set Global Listeners and Attach Functions ---
-        const clockBtn = document.getElementById('clock-action-btn');
-        if (clockBtn) {
-            clockBtn.onclick = () => {
-                const videoEl = document.getElementById('webcam-feed');
-                handleClockAction(videoEl);
-            };
-        }
+        // --- 3. Set Global Listeners and Attach Functions (Done in main.js) ---
+        // Ensuring listeners are attached once.
         
-        const loginBtn = document.querySelector('#login_view button');
-        if (loginBtn) {
-            loginBtn.onclick = handleLogin;
-        }
-
     } catch (error) {
         // CRITICAL: If renderUI fails, this logs the exact component/line that caused the crash.
         console.error("FATAL UI RENDERING ERROR. App is unstable:", error);
@@ -96,8 +85,7 @@ export function renderKiosk() {
 
     if (showCamera) {
         const videoElement = document.getElementById('webcam-feed');
-        // Check if stream is already running to avoid unnecessary restarts
-        if (!state.mediaStream) { 
+        if (videoElement && !state.mediaStream) { 
             startCamera(videoElement);
         }
     } else {
@@ -148,7 +136,6 @@ export function renderEmployeeList() {
     const tableBody = document.getElementById('employee-list-body');
     if (!tableBody || !state.allEmployees) return;
 
-    // Filter out the current user for security/integrity reasons when showing the list
     const employees = Object.values(state.allEmployees)
         .filter(emp => emp.uid !== state.currentUser?.uid) 
         .sort((a, b) => a.name.localeCompare(b.name));
@@ -183,7 +170,7 @@ export function renderEmployeeList() {
  */
 export function renderTimeLogList() {
     const tableBody = document.getElementById('time-log-list-body');
-    const employeeFilter = document.getElementById('filter-employee');
+    const employeeFilter = document.getElementById('filter-employee-select');
     const startDateFilter = document.getElementById('filter-start-date');
     const endDateFilter = document.getElementById('filter-end-date');
     if (!tableBody || !state.allLogs || !state.allEmployees) return;
@@ -202,7 +189,7 @@ export function renderTimeLogList() {
     // --- Apply Filtering ---
     let filteredLogs = state.allLogs;
 
-    // Filter by Employee UID
+    // Read filter values and update state
     const currentFilterUid = employeeFilter?.value || null;
     updateState({ filterEmployeeUid: currentFilterUid });
 
@@ -271,7 +258,6 @@ export function renderAuditLogList() {
     const tableBody = document.getElementById('audit-log-list-body');
     if (!tableBody || !state.auditLogs || !state.allEmployees) return;
 
-    // Sort by timestamp descending (newest first) and take the last 10
     const recentLogs = state.auditLogs
         .sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis())
         .slice(0, 10);
@@ -318,7 +304,7 @@ export function closeLogModal() {
 
 export function showPhotoModal(base64Image) {
     const modal = document.getElementById('photo-modal');
-    const imgEl = document.getElementById('photo-viewer-img');
+    const imgEl = document.getElementById('photo-viewer-img'); // Correct ID from index.html
     if (modal && imgEl) {
         imgEl.src = base64Image;
         modal.classList.remove('hidden');

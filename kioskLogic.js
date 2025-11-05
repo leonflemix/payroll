@@ -1,9 +1,9 @@
 // Filename: kioskLogic.js
 import { state, updateState } from './state.js';
-import { ADMIN_EMAIL, ENABLE_CAMERA } from './constants.js';
+import { ENABLE_CAMERA } from './constants.js'; // Import global camera flag
 import { setAuthMessage, closeAllModals, renderUI } from './uiRender.js';
-import { takePhoto, stopCamera, startCamera } from './utils.js'; // Added startCamera
-import { getAuth, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { takePhoto, stopCamera, startCamera } from './utils.js';
+import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { collection, doc, setDoc, Timestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 /*
@@ -88,7 +88,6 @@ export function navigateTo(targetView) {
 
 /**
  * Exports the main clock in/out action handler.
- * Attaches to the main clock button in index.html.
  */
 export async function handleClockAction() {
     if (!state.db || !state.currentUser) {
@@ -102,7 +101,8 @@ export async function handleClockAction() {
     const type = status === 'in' ? 'out' : 'in';
     let photoData = null;
 
-    if (cameraEnabled && ENABLE_CAMERA) {
+    // Check if both global flag AND user setting are enabled
+    if (cameraEnabled && ENABLE_CAMERA) { 
         setAuthMessage(`Capturing photo for clock ${type}...`, false);
         photoData = takePhoto(videoElement);
 
@@ -119,7 +119,7 @@ export async function handleClockAction() {
             employeeUid: uid,
             type: type,
             timestamp: Timestamp.now(),
-            photo: photoData,
+            photo: photoData, // Null if camera disabled
         };
 
         // Use a Firestore auto-generated ID for new logs

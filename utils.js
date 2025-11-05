@@ -1,6 +1,6 @@
 // Filename: utils.js
-import { state } from './state.js';
-import { ENABLE_CAMERA } from './constants.js';
+import { state, updateState } from './state.js';
+import { ENABLE_CAMERA } from './constants.js'; // Import global flag
 
 /*
 |--------------------------------------------------------------------------
@@ -13,7 +13,7 @@ import { ENABLE_CAMERA } from './constants.js';
  * @param {HTMLVideoElement} videoElement - The video element to display the stream.
  */
 export function startCamera(videoElement) {
-    if (!ENABLE_CAMERA) return;
+    if (!ENABLE_CAMERA || !videoElement) return; // Use imported ENABLE_CAMERA
     
     try {
         if (state.mediaStream) {
@@ -24,18 +24,18 @@ export function startCamera(videoElement) {
 
         navigator.mediaDevices.getUserMedia(constraints)
             .then(stream => {
-                state.mediaStream = stream;
+                updateState({ mediaStream: stream });
                 videoElement.srcObject = stream;
                 videoElement.play();
                 console.log("Camera stream started.");
             })
             .catch(err => {
                 console.error("Error accessing camera:", err);
-                state.mediaStream = null;
+                updateState({ mediaStream: null });
             });
     } catch (e) {
         console.error("Camera access failed in try-catch:", e);
-        state.mediaStream = null;
+        updateState({ mediaStream: null });
     }
 }
 
@@ -45,7 +45,7 @@ export function startCamera(videoElement) {
 export function stopCamera() {
     if (state.mediaStream) {
         state.mediaStream.getTracks().forEach(track => track.stop());
-        state.mediaStream = null;
+        updateState({ mediaStream: null });
         console.log("Camera stream stopped.");
     }
 }
@@ -56,7 +56,7 @@ export function stopCamera() {
  * @returns {string|null} Base64 image string or null if capture fails.
  */
 export function takePhoto(videoElement) {
-    if (!state.mediaStream) return null;
+    if (!state.mediaStream || !videoElement) return null;
 
     try {
         const canvas = document.createElement('canvas');
@@ -77,7 +77,6 @@ export function takePhoto(videoElement) {
 
 /**
  * Converts a Base64 string (without the MIME prefix) into an ArrayBuffer.
- * This is used to decode the captured photo data for display.
  * @param {string} base64 - Base64 string of the image.
  * @returns {ArrayBuffer}
  */
@@ -99,7 +98,6 @@ export function base64ToArrayBuffer(base64) {
 
 /**
  * Calculates the total time, regular time, and overtime for a single shift.
- * Applies break deduction and daily overtime rules based on employee settings.
  * @param {Object} logEntry - Paired in/out log entry.
  * @param {Object} employee - The employee's settings (maxDailyHours, breakDeductionMins).
  * @returns {{totalHours: number, regularHours: number, dailyOT: number, weeklyOT: number}}
@@ -114,14 +112,13 @@ export function calculateShiftTime(logEntry, employee) {
     
     // Total duration in milliseconds
     let durationMs = timeOut - timeIn;
-    if (durationMs < 0) durationMs = 0; // Should not happen
+    if (durationMs < 0) durationMs = 0; 
 
     let totalHours = durationMs / (1000 * 60 * 60);
 
     // Apply Break Deduction Logic
     const breakTriggerHours = 6;
     if (totalHours > breakTriggerHours) {
-        // Deduction is applied only if the shift exceeds the trigger threshold
         totalHours -= (employee.breakDeductionMins / 60);
     }
 
@@ -147,7 +144,6 @@ export function calculateShiftTime(logEntry, employee) {
 
 /**
  * Formats a Firebase Timestamp object into a readable date and time string.
- * Used for displaying recent activity and audit logs.
  * @param {Object} timestamp - Firebase Timestamp object.
  * @returns {string} Formatted date/time string.
  */
@@ -163,7 +159,6 @@ export function formatTimestamp(timestamp) {
 
 /**
  * Formats a standard Date object into a readable time string (e.g., 9:00 AM).
- * Used primarily for payroll reports.
  * @param {Date} date - Standard Date object.
  * @returns {string} Formatted time string.
  */
@@ -175,7 +170,6 @@ export function formatTime(date) {
 
 /**
  * Formats a duration in hours (decimal) to a fixed two-decimal string.
- * Used primarily for payroll reports.
  * @param {number} hours - Duration in decimal hours.
  * @returns {string} Formatted duration string.
  */

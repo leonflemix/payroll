@@ -1,6 +1,6 @@
 // Filename: firebase.js
 import { state, updateState, setDb, setAuth, setUserId, setAdminError } from './state.js';
-import { FIREBASE_CONFIG, BASE_PATH } from './constants.js'; // <-- CORRECTED: Imported BASE_PATH
+import { FIREBASE_CONFIG, BASE_PATH } from './constants.js';
 import { navigateTo } from './kioskLogic.js';
 import { renderUI, setAuthMessage } from './uiRender.js';
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -23,8 +23,7 @@ export async function initFirebase() {
         setDb(getFirestore(app));
         setAuth(getAuth(app));
 
-        // Define Firestore Collection Paths based on Project ID
-        // The path structure is now correctly set here using the exported BASE_PATH
+        // Define Firestore Collection Paths using the imported BASE_PATH
         const pathRoot = BASE_PATH; 
         updateState({
             employee_path: `${pathRoot}/employees`,
@@ -40,7 +39,7 @@ export async function initFirebase() {
                 fetchAndSetCurrentUser(user);
             } else {
                 // User is signed out (or initial state)
-                state.currentUser = null;
+                updateState({ currentUser: null });
                 setUserId(null);
                 navigateTo('login_view');
                 renderUI();
@@ -105,12 +104,12 @@ export async function updateEmployeeStatusAfterLogEdit(employeeUid) {
 
     try {
         const logsCollection = collection(state.db, state.timecards_logs_path);
-        // Query ordered by timestamp to find the absolute latest punch
+        
+        // Query to find the absolute latest punch
         const q = query(
             logsCollection,
             where("employeeUid", "==", employeeUid),
-            // Re-adding orderBy, requires index for full performance
-            // orderBy("timestamp", "desc")
+            // We removed orderBy("timestamp", "desc") to bypass index errors.
         );
 
         const querySnapshot = await getDocs(q);
@@ -154,7 +153,6 @@ export function listenToUserLogs(uid) {
         const logsQuery = query(
             logsCollection,
             where("employeeUid", "==", uid),
-            // ORDER BY is commented out to bypass index issue. Sort client-side.
         );
 
         onSnapshot(logsQuery, (snapshot) => {
@@ -177,14 +175,12 @@ export function listenToUserLogs(uid) {
 
 /**
  * Initializes all admin-level real-time listeners for dashboard data.
- * NOTE: All listeners are temporarily simplified (no orderBy) to bypass index errors.
  */
 export function listenToAllData() {
     if (!state.db) return;
 
     try {
         // --- 1. Employees Listener ---
-        console.log(`[DEBUG]: Attempting to listen to ALL employees at path: ${state.employee_path}`);
         onSnapshot(collection(state.db, state.employee_path), (snapshot) => {
             const employees = {};
             snapshot.docs.forEach(doc => {
@@ -200,7 +196,6 @@ export function listenToAllData() {
 
 
         // --- 2. All Time Logs Listener ---
-        console.log(`[DEBUG]: Attempting to listen to ALL logs at path: ${state.timecards_logs_path}`);
         onSnapshot(collection(state.db, state.timecards_logs_path), (snapshot) => {
             updateState({ allLogs: snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })), adminError: null });
             renderUI();
@@ -213,7 +208,6 @@ export function listenToAllData() {
 
         // --- 3. Audit Logs Listener ---
         const auditQuery = query(collection(state.db, state.audit_logs_path));
-        console.log(`[DEBUG]: Attempting to listen to ALL audit logs at path: ${state.audit_logs_path}`);
         onSnapshot(auditQuery, (snapshot) => {
             const auditLogs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             // Client-side sort by timestamp descending (newest first)
