@@ -14,8 +14,6 @@ import { collection, doc, setDoc, Timestamp } from "https://www.gstatic.com/fire
 
 /**
  * Handles the employee and admin login process.
- * @param {string} email - User's email address.
- * @param {string} password - User's password.
  */
 export async function handleLogin() {
     const email = document.getElementById('login-email').value;
@@ -58,8 +56,6 @@ export async function handleLogout() {
 
 /**
  * Changes the current view in the application.
- * NOTE: This function is simplified because the majority of navigation 
- * happens inside firebase.js after auth checks.
  * @param {string} targetView - The name of the view to switch to ('login', 'kiosk', 'admin_dashboard').
  */
 export function navigateTo(targetView) {
@@ -67,10 +63,8 @@ export function navigateTo(targetView) {
         updateState({ currentView: targetView });
         renderUI();
 
-        // Handle Camera State
-        if (targetView === 'kiosk' && state.currentUser?.cameraEnabled && ENABLE_CAMERA) {
-            // Camera start is initiated during renderUI if ENABLE_CAMERA is true
-        } else {
+        // Handle Camera State (Note: startCamera is now handled in uiRender based on view change)
+        if (targetView !== 'kiosk') {
             stopCamera();
         }
 
@@ -107,21 +101,20 @@ export async function handleClockAction() {
     if (cameraEnabled && ENABLE_CAMERA) {
         setAuthMessage(`Capturing photo for clock ${type}...`, false);
         
-        // --- Defensive Camera Stream Check ---
-        if (!state.mediaStream && videoElement) {
-            startCamera(videoElement);
-            await delay(500); // Wait 0.5s for stream to stabilize
+        // --- CRITICAL CHANGE: We rely only on the stream being ready now ---
+        if (!state.mediaStream) {
+            updateState({ isClocking: false });
+            // Direct the user to check their UI/permissions, as stream should have started on Kiosk load
+            setAuthMessage("Camera stream not active. Check permissions or refresh page.", true); 
+            console.error("CRITICAL CAMERA FAILURE: mediaStream is NULL. Aborting clock action.");
+            return;
         }
         
-        if (state.mediaStream) {
-            photoData = takePhoto(videoElement);
-        }
+        photoData = takePhoto(videoElement);
 
         if (!photoData) {
-            // Revert status and inform user if photo fails
             updateState({ isClocking: false });
             setAuthMessage("Photo capture failed. Please ensure camera access is enabled.", true);
-            console.error("CRITICAL CAMERA FAILURE: mediaStream is NULL despite browser permission being granted.");
             return;
         }
     }
@@ -134,7 +127,7 @@ export async function handleClockAction() {
             employeeName: state.currentUser.name,
             type: type,
             timestamp: Timestamp.now(),
-            photo: photoData, // Note: storing as 'photo' for consistency
+            photo: photoData,
         };
 
         await setDoc(doc(timecardsCollection), logEntry);

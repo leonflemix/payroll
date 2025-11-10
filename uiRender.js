@@ -1,8 +1,7 @@
 // Filename: uiRender.js
 import { state, updateState } from './state.js';
-import { handleEmployeeSignup, handleEmployeeSettings, deleteEmployee, handleLogSave, handleLogDelete, generatePayrollReport, toggleSignupModal, toggleSettingsModal, toggleLogModal } from './adminCrud.js';
-import { handleClockAction, handleLogin, handleLogout, navigateTo } from './kioskLogic.js';
-import { formatTimestamp, base64ToArrayBuffer, formatTotalHours, startCamera, stopCamera } from './utils.js';
+import { startCamera, stopCamera, formatTimestamp, calculateShiftTime, formatTime, formatTotalHours, base64ToArrayBuffer } from './utils.js';
+import { handleEmployeeSettings, toggleSettingsModal, handleEmployeeSignup, deleteEmployee, toggleSignupModal, toggleLogModal, handleLogSave, handleLogDelete, generatePayrollReport } from './adminCrud.js';
 
 /*
 |--------------------------------------------------------------------------
@@ -15,40 +14,58 @@ import { formatTimestamp, base64ToArrayBuffer, formatTotalHours, startCamera, st
  */
 export function renderUI() {
     try {
-        // --- 1. Set View Visibility ---
+        const appContainer = document.getElementById('app-container');
+        if (!appContainer) return;
+
+        // Display Auth status message (uses the old static div for consistency)
+        const authStatus = document.getElementById('auth-message-box');
+        if (state.isAuthReady && state.currentUser) {
+            authStatus.innerHTML = `<p>Signed in as: ${state.currentUser.email} (${state.currentUser.name})</p>`;
+            authStatus.classList.add('bg-green-100', 'text-green-800');
+            authStatus.classList.remove('hidden');
+        } else if (state.isAuthReady) {
+            authStatus.innerHTML = `<p>Please login.</p>`;
+            authStatus.classList.add('bg-red-100', 'text-red-800');
+            authStatus.classList.remove('hidden');
+        } else {
+            authStatus.innerHTML = `<p>Connecting to Firebase...</p>`;
+            authStatus.classList.remove('bg-green-100', 'bg-red-100', 'text-green-800', 'text-red-800');
+            authStatus.classList.remove('hidden');
+        }
+        
+        // --- View Switching ---
         const views = ['login_view', 'kiosk_view', 'admin_dashboard_view'];
         views.forEach(viewId => {
-            const viewElement = document.getElementById(viewId);
-            if (viewElement) {
-                viewElement.style.display = (viewId === state.currentView) ? 'block' : 'none';
+            const el = document.getElementById(viewId);
+            if (el) {
+                el.style.display = (viewId === state.currentView) ? 'block' : 'none';
             }
         });
 
-        // --- 2. Render View-Specific Content ---
+
+        // --- Render Kiosk View ---
         if (state.currentView === 'kiosk_view' && state.currentUser) {
             renderKiosk();
         }
 
-        if (state.currentView === 'admin_dashboard_view') {
-            // Render dashboard components regardless of loading state
-            renderEmployeeList();
-            renderTimeLogList();
-            renderAuditLogList();
+        // --- Render Admin Dashboard ---
+        if (state.currentView === 'admin_dashboard_view' && state.currentUser?.isAdmin) {
+            // Only attempt to render data tables if listeners have loaded (state.allEmployees is populated)
+            if (Object.keys(state.allEmployees).length > 0) {
+                renderEmployeeList();
+                renderTimeLogList();
+                renderAuditLogList();
+            }
 
             // Display Admin Dashboard Error
             const adminErrorEl = document.getElementById('admin-error-message');
-            if (adminErrorEl) {
-                if (state.adminError) {
-                    adminErrorEl.textContent = `CRITICAL DATA ERROR: ${state.adminError}`;
-                    adminErrorEl.classList.remove('hidden');
-                } else {
-                    adminErrorEl.classList.add('hidden');
-                }
+            if (state.adminError) {
+                adminErrorEl.textContent = `CRITICAL DATA ERROR: ${state.adminError}`;
+                adminErrorEl.classList.remove('hidden');
+            } else {
+                adminErrorEl.classList.add('hidden');
             }
         }
-
-        // --- 3. Set Global Listeners and Attach Functions (Done in main.js) ---
-        // Ensuring listeners are attached once.
         
     } catch (error) {
         // CRITICAL: If renderUI fails, this logs the exact component/line that caused the crash.
@@ -68,46 +85,51 @@ export function renderUI() {
 export function renderKiosk() {
     if (!state.currentUser) return;
 
-    const nameDisplay = document.getElementById('kiosk-employee-name');
-    const statusBadge = document.getElementById('kiosk-status-badge');
+    const kioskStatus = document.getElementById('kiosk-status-badge');
     const clockButton = document.getElementById('clock-action-btn');
     const recentActivity = document.getElementById('recent-activity-list');
+    const nameDisplay = document.getElementById('kiosk-employee-name');
     const currentStatus = state.currentUser.status || 'out';
     const cameraSection = document.getElementById('camera-section');
+    const webcamFeed = document.getElementById('webcam-feed');
 
-    // Update Name and Camera Visibility
+
+    // Update Name and Camera Section Visibility
     nameDisplay.textContent = state.currentUser.name;
-    
-    const showCamera = state.currentUser.cameraEnabled && state.ENABLE_CAMERA;
-    if (cameraSection) {
-        cameraSection.style.display = showCamera ? 'block' : 'none';
-    }
+    const isCameraEnabled = state.currentUser.cameraEnabled && state.ENABLE_CAMERA;
+    cameraSection.style.display = isCameraEnabled ? 'block' : 'none';
 
-    if (showCamera) {
-        const videoElement = document.getElementById('webcam-feed');
-        if (videoElement && !state.mediaStream) { 
-            startCamera(videoElement);
-        }
+    // Start/Stop Camera
+    if (isCameraEnabled && currentStatus === 'out') {
+        startCamera(webcamFeed);
     } else {
         stopCamera();
     }
 
-    // Update Status Badge and Button
+
+    // Update Status and Button
     if (currentStatus === 'in') {
-        statusBadge.textContent = 'Clocked In';
-        statusBadge.classList.remove('status-out');
-        statusBadge.classList.add('status-in');
+        kioskStatus.textContent = 'Clocked In';
+        kioskStatus.classList.remove('bg-gray-200');
+        kioskStatus.classList.add('bg-green-500', 'text-white');
         clockButton.textContent = 'Clock Out';
-        clockButton.classList.remove('btn-success');
-        clockButton.classList.add('btn-danger');
+        clockButton.classList.remove('bg-green-500');
+        clockButton.classList.add('bg-red-500', 'hover:bg-red-600');
     } else {
-        statusBadge.textContent = 'Clocked Out';
-        statusBadge.classList.remove('status-in');
-        statusBadge.classList.add('status-out');
+        kioskStatus.textContent = 'Clocked Out';
+        kioskStatus.classList.remove('bg-green-500', 'text-white');
+        kioskStatus.classList.add('bg-gray-200');
         clockButton.textContent = 'Clock In';
-        clockButton.classList.remove('btn-danger');
-        clockButton.classList.add('btn-success');
+        clockButton.classList.remove('bg-red-500');
+        clockButton.classList.add('bg-green-500', 'hover:bg-green-600');
     }
+
+    // Disable button if clocking is in progress
+    clockButton.disabled = state.isClocking;
+    if (state.isClocking) {
+        clockButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+    }
+
 
     // --- Render Recent Activity ---
     if (recentActivity) {
@@ -136,9 +158,7 @@ export function renderEmployeeList() {
     const tableBody = document.getElementById('employee-list-body');
     if (!tableBody || !state.allEmployees) return;
 
-    const employees = Object.values(state.allEmployees)
-        .filter(emp => emp.uid !== state.currentUser?.uid) 
-        .sort((a, b) => a.name.localeCompare(b.name));
+    const employees = Object.values(state.allEmployees).sort((a, b) => a.name.localeCompare(b.name));
 
     tableBody.innerHTML = employees.map(emp => `
         <tr class="border-b hover:bg-gray-50 ${emp.isAdmin ? 'bg-yellow-50/50' : ''}">
@@ -155,9 +175,9 @@ export function renderEmployeeList() {
                     ${emp.isAdmin ? 'Admin' : 'Employee'}
                 </span>
             </td>
-            <td class="px-6 py-3 whitespace-nowrap text-sm font-medium">
-                <button onclick="toggleSettingsModal('${emp.uid}')" class="text-indigo-600 hover:text-indigo-900 mr-3">Settings</button>
-                <button onclick="toggleSignupModal('${emp.uid}')" class="text-blue-600 hover:text-blue-900 mr-3">Edit</button>
+            <td class="px-6 py-3 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                <button onclick="toggleSettingsModal('${emp.uid}')" class="text-indigo-600 hover:text-indigo-900">Edit Settings</button>
+                <button onclick="toggleSignupModal('${emp.uid}')" class="text-blue-600 hover:text-blue-900">Edit Profile</button>
                 <button onclick="deleteEmployee('${emp.uid}')" class="text-red-600 hover:text-red-900">Delete</button>
             </td>
         </tr>
@@ -166,7 +186,7 @@ export function renderEmployeeList() {
 
 
 /**
- * Filters the main log data based on current admin settings and renders the table.
+ * Renders the Time Log Management table, filtered by current admin settings.
  */
 export function renderTimeLogList() {
     const tableBody = document.getElementById('time-log-list-body');
@@ -178,36 +198,32 @@ export function renderTimeLogList() {
     // --- Populate Employee Filter Dropdown ---
     if (employeeFilter && employeeFilter.children.length <= 1) { 
         const employees = Object.values(state.allEmployees).sort((a, b) => a.name.localeCompare(b.name));
-        employeeFilter.innerHTML = '<option value="">All Employees</option>' + employees.map(emp =>
+        employeeFilter.innerHTML = '<option value="">-- All Employees --</option>' + employees.map(emp =>
             `<option value="${emp.uid}">${emp.name}</option>`
         ).join('');
-        if (state.filterEmployeeUid) {
-            employeeFilter.value = state.filterEmployeeUid;
-        }
     }
 
-    // --- Apply Filtering ---
-    let filteredLogs = state.allLogs;
-
-    // Read filter values and update state
-    const currentFilterUid = employeeFilter?.value || null;
-    updateState({ filterEmployeeUid: currentFilterUid });
-
-    if (currentFilterUid) {
-        filteredLogs = filteredLogs.filter(log => log.employeeUid === currentFilterUid);
-    }
-
-    // Filter by Date Range
+    // --- Apply Filtering based on DOM values (since applyFilters is called) ---
+    const employeeUid = employeeFilter.value;
     const startDate = startDateFilter.value ? new Date(startDateFilter.value) : null;
     const endDate = endDateFilter.value ? new Date(endDateFilter.value) : null;
 
+
+    let filteredLogs = state.allLogs;
+
+    // Filter by Employee UID
+    if (employeeUid && employeeUid !== "") {
+        filteredLogs = filteredLogs.filter(log => log.employeeUid === employeeUid);
+    }
+
+    // Filter by Date Range
     if (startDate) {
         const startTimestamp = startDate.getTime();
         filteredLogs = filteredLogs.filter(log => log.timestamp.toMillis() >= startTimestamp);
     }
 
     if (endDate) {
-        const endTimestamp = endDate.getTime() + 86400000; 
+        const endTimestamp = endDate.getTime() + 86400000; // End of the day
         filteredLogs = filteredLogs.filter(log => log.timestamp.toMillis() < endTimestamp);
     }
     
@@ -215,7 +231,7 @@ export function renderTimeLogList() {
     filteredLogs.sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis());
 
     tableBody.innerHTML = filteredLogs.map(log => {
-        const employee = state.allEmployees[log.employeeUid] || { name: 'Unknown', email: 'N/A' };
+        const employee = state.allEmployees[log.employeeUid] || { name: 'Unknown' };
         const hasPhoto = !!log.photo;
 
         return `
@@ -231,15 +247,12 @@ export function renderTimeLogList() {
                     ${hasPhoto ? 
                         `<button onclick="showPhotoModal('${log.photo}')" class="text-blue-600 hover:text-blue-900 text-sm">View Photo</button>` :
                         `<span class="inline-flex items-center text-red-500 text-sm">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 mr-1">
-                                <path fill-rule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0ZM8.288 5.711A.75.75 0 0 0 7.5 6.444v7.112a.75.75 0 0 0 1.288.536l4.632-3.556a.75.75 0 0 0 0-1.293L8.788 5.711Z" clip-rule="evenodd" />
-                            </svg>
-                            N/A
+                            <i class="fas fa-camera-slash mr-1"></i> N/A
                         </span>`
                     }
                 </td>
-                <td class="px-6 py-3 whitespace-nowrap text-sm font-medium">
-                    <button onclick="toggleLogModal('${log.id}')" class="text-indigo-600 hover:text-indigo-900 mr-3">Edit</button>
+                <td class="px-6 py-3 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                    <button onclick="toggleLogModal('${log.id}')" class="text-indigo-600 hover:text-indigo-900">Edit</button>
                     <button onclick="handleLogDelete('${log.id}')" class="text-red-600 hover:text-red-900">Delete</button>
                 </td>
             </tr>
@@ -258,15 +271,13 @@ export function renderAuditLogList() {
     const tableBody = document.getElementById('audit-log-list-body');
     if (!tableBody || !state.auditLogs || !state.allEmployees) return;
 
-    const recentLogs = state.auditLogs
-        .sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis())
-        .slice(0, 10);
+    // Use state.auditLogs which is already sorted and sliced to 10
+    const recentLogs = state.auditLogs;
 
     tableBody.innerHTML = recentLogs.map(log => {
         const admin = state.allEmployees[log.adminUid] || { name: 'Unknown Admin' };
         const targetEmployee = state.allEmployees[log.targetUid] || { name: 'N/A' };
-        const actionType = log.action.includes('EDIT') ? 'bg-yellow-100 text-yellow-800' : 
-                         (log.action.includes('DELETE') ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800');
+        const actionType = log.action === 'EDIT_LOG' || log.action === 'EDIT_SETTINGS' || log.action === 'EDIT_PROFILE' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800';
         
         return `
             <tr class="border-b hover:bg-gray-50">
@@ -275,7 +286,7 @@ export function renderAuditLogList() {
                 <td class="px-6 py-3 text-sm">${targetEmployee.name}</td>
                 <td class="px-6 py-3">
                     <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${actionType}">
-                        ${log.action}
+                        ${log.action.replace('_', ' ')}
                     </span>
                 </td>
                 <td class="px-6 py-3 text-sm text-gray-600 truncate max-w-xs">${log.details}</td>
@@ -304,7 +315,7 @@ export function closeLogModal() {
 
 export function showPhotoModal(base64Image) {
     const modal = document.getElementById('photo-modal');
-    const imgEl = document.getElementById('photo-viewer-img'); // Correct ID from index.html
+    const imgEl = document.getElementById('photo-viewer-img');
     if (modal && imgEl) {
         imgEl.src = base64Image;
         modal.classList.remove('hidden');
@@ -320,6 +331,7 @@ export function closeSettingsModal() {
 }
 
 export function applyFilters() {
+    // This is called from the HTML buttons to trigger a re-render of the log table
     renderTimeLogList();
 }
 
@@ -339,17 +351,19 @@ export function closeAllModals() {
  * @param {boolean} isError If true, displays in red (error); otherwise, green (success).
  */
 export function setAuthMessage(message, isError = false) {
-    const messageBox = document.getElementById('auth-message-box');
-    if (messageBox) {
-        messageBox.textContent = message;
-        messageBox.classList.remove('hidden', 'bg-green-100', 'bg-red-100', 'text-green-800', 'text-red-800');
-        
-        messageBox.classList.add(isError ? 'bg-red-100' : 'bg-green-100');
-        messageBox.classList.add(isError ? 'text-red-800' : 'text-green-800');
+    const authStatus = document.getElementById('auth-message-box');
+    if (authStatus) {
+        authStatus.textContent = message;
+        authStatus.classList.remove('bg-green-100', 'bg-red-100', 'text-green-800', 'text-red-800', 'hidden');
+        authStatus.classList.add(isError ? 'bg-red-100' : 'bg-green-100', isError ? 'text-red-800' : 'text-green-800');
 
-        // Show for 5 seconds
+        // Clear the message after a delay
         setTimeout(() => {
-            messageBox.classList.add('hidden');
+            // Re-render the UI to restore the default status message (handled by renderUI's initial check)
+            if (authStatus.textContent === message) {
+                authStatus.classList.add('hidden');
+                authStatus.textContent = '';
+            }
         }, 5000);
     }
 }

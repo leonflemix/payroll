@@ -1,5 +1,5 @@
 // Filename: adminCrud.js
-import { state } from './state.js';
+import { state, updateState } from './state.js';
 import { renderEmployeeList, renderTimeLogList, renderAuditLogList, closeAllModals, setAuthMessage, closeSignupModal, closeLogModal, closeSettingsModal, showPhotoModal } from './uiRender.js';
 import { writeAuditLog, updateEmployeeStatusAfterLogEdit } from './firebase.js';
 import { formatTotalHours, formatTime } from './utils.js';
@@ -365,12 +365,16 @@ export async function generatePayrollReport() {
 
     const startDateFilter = document.getElementById('filter-start-date');
     const endDateFilter = document.getElementById('filter-end-date');
+    const employeeFilter = document.getElementById('filter-employee-select'); // Get the select element
+
+    // Update state based on current filters for consistency
+    const employeeUid = employeeFilter.value || null;
 
     let filteredLogs = state.allLogs;
 
     // Filter by Employee UID
-    if (state.filterEmployeeUid) {
-        filteredLogs = filteredLogs.filter(log => log.employeeUid === state.filterEmployeeUid);
+    if (employeeUid && employeeUid !== "") {
+        filteredLogs = filteredLogs.filter(log => log.employeeUid === employeeUid);
     }
 
     // Filter by Date Range
@@ -415,7 +419,6 @@ export async function generatePayrollReport() {
                     name: employee.name,
                     in: current.timestamp.toDate(),
                     out: nextOut.timestamp.toDate(),
-                    durationMs: shiftDurationMs,
                     shiftHours: shiftHours,
                     maxDailyHours: maxDailyHours,
                     breakDeductionMins: breakDeductionMins,
@@ -432,7 +435,7 @@ export async function generatePayrollReport() {
 
     // --- 2. Calculate Overtime (Daily and Weekly) ---
     const finalReport = [];
-    const weeklyHours = {}; 
+    const weeklyHours = {}; // Tracks hours for weekly OT calculation
 
     for (const shift of shifts) {
         let grossHours = shift.shiftHours;

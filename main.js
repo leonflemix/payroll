@@ -2,7 +2,7 @@
 import { initFirebase } from './firebase.js';
 import { handleLogin, handleLogout, handleClockAction } from './kioskLogic.js';
 import { toggleSignupModal, handleEmployeeSignup, handleEmployeeSettings, deleteEmployee, toggleSettingsModal, toggleLogModal, handleLogSave, handleLogDelete, generatePayrollReport } from './adminCrud.js';
-import { closeSignupModal, closeLogModal, showPhotoModal, closePhotoModal, closeSettingsModal, applyFilters, closeAllModals } from './uiRender.js';
+import { closeSignupModal, closeLogModal, showPhotoModal, closePhotoModal, closeSettingsModal, applyFilters, closeAllModals, setAuthMessage } from './uiRender.js';
 
 /*
 |--------------------------------------------------------------------------
@@ -22,17 +22,17 @@ window.onload = function() {
     window.handleClockAction = handleClockAction;
 
     // Admin CRUD Functions
-    window.toggleSignupModal = toggleSignupModal;
     window.handleEmployeeSignup = handleEmployeeSignup;
     window.handleEmployeeSettings = handleEmployeeSettings;
     window.deleteEmployee = deleteEmployee;
-    window.toggleSettingsModal = toggleSettingsModal;
-    window.toggleLogModal = toggleLogModal;
     window.handleLogSave = handleLogSave;
     window.handleLogDelete = handleLogDelete;
     window.generatePayrollReport = generatePayrollReport;
 
     // UI/Modal Functions
+    window.toggleSignupModal = toggleSignupModal;
+    window.toggleSettingsModal = toggleSettingsModal;
+    window.toggleLogModal = toggleLogModal;
     window.closeSignupModal = closeSignupModal;
     window.closeLogModal = closeLogModal;
     window.showPhotoModal = showPhotoModal;

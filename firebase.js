@@ -5,7 +5,7 @@ import { navigateTo } from './kioskLogic.js';
 import { renderUI, setAuthMessage } from './uiRender.js';
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, doc, getDoc, collection, query, where, onSnapshot, Timestamp, updateDoc, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { getFirestore, doc, getDoc, collection, query, where, onSnapshot, Timestamp, updateDoc, setDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 /*
 |--------------------------------------------------------------------------
@@ -23,12 +23,11 @@ export async function initFirebase() {
         setDb(getFirestore(app));
         setAuth(getAuth(app));
 
-        // Define Firestore Collection Paths using the imported BASE_PATH
-        const pathRoot = BASE_PATH; 
+        // Define Firestore Collection Paths based on Project ID
         updateState({
-            employee_path: `${pathRoot}/employees`,
-            timecards_logs_path: `${pathRoot}/time_logs`,
-            audit_logs_path: `${pathRoot}/audit_logs`
+            employee_path: `${BASE_PATH}/employees`,
+            timecards_logs_path: `${BASE_PATH}/time_logs`,
+            audit_logs_path: `${BASE_PATH}/audit_logs`
         });
 
         // Start listening for Authentication changes
@@ -39,11 +38,11 @@ export async function initFirebase() {
                 fetchAndSetCurrentUser(user);
             } else {
                 // User is signed out (or initial state)
-                updateState({ currentUser: null });
-                setUserId(null);
-                navigateTo('login_view');
-                renderUI();
+                updateState({ currentUser: null, isAuthReady: true });
+                navigateTo('login');
             }
+            // isAuthReady set here after initial check is complete
+            updateState({ isAuthReady: true });
         });
 
     } catch (error) {
@@ -75,15 +74,16 @@ export async function fetchAndSetCurrentUser(user) {
             setUserId(user.uid);
 
             if (userData.isAdmin) {
-                listenToAllData(); 
-                navigateTo('admin_dashboard_view');
+                listenToAllData();
+                navigateTo('admin_dashboard');
             } else {
                 listenToUserLogs(user.uid);
-                navigateTo('kiosk_view');
+                navigateTo('kiosk');
             }
             renderUI();
 
         } else {
+            // CRITICAL: Profile document missing, forcing logout
             console.error(`CRITICAL ERROR: User profile document missing for Auth UID: ${user.uid}. Logging out.`);
             setAuthMessage("Profile not found. Contact administrator.", true);
             await state.auth.signOut();
@@ -104,12 +104,9 @@ export async function updateEmployeeStatusAfterLogEdit(employeeUid) {
 
     try {
         const logsCollection = collection(state.db, state.timecards_logs_path);
-        
-        // Query to find the absolute latest punch
         const q = query(
             logsCollection,
-            where("employeeUid", "==", employeeUid),
-            // We removed orderBy("timestamp", "desc") to bypass index errors.
+            where("employeeUid", "==", employeeUid)
         );
 
         const querySnapshot = await getDocs(q);
@@ -124,8 +121,7 @@ export async function updateEmployeeStatusAfterLogEdit(employeeUid) {
 
         const latestLog = logsArray.length > 0 ? logsArray[0] : null;
 
-        // Status logic: if last punch was 'out', next action should be 'in' (status='out'), and vice versa.
-        const newStatus = latestLog ? (latestLog.type === 'out' ? 'in' : 'out') : 'out'; 
+        const newStatus = latestLog ? (latestLog.type === 'in' ? 'out' : 'in') : 'out';
 
         const employeeRef = doc(state.db, state.employee_path, employeeUid);
         await updateDoc(employeeRef, { status: newStatus });
@@ -152,7 +148,7 @@ export function listenToUserLogs(uid) {
         const logsCollection = collection(state.db, state.timecards_logs_path);
         const logsQuery = query(
             logsCollection,
-            where("employeeUid", "==", uid),
+            where("employeeUid", "==", uid)
         );
 
         onSnapshot(logsQuery, (snapshot) => {
@@ -197,7 +193,8 @@ export function listenToAllData() {
 
         // --- 2. All Time Logs Listener ---
         onSnapshot(collection(state.db, state.timecards_logs_path), (snapshot) => {
-            updateState({ allLogs: snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })), adminError: null });
+            const logs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            updateState({ allLogs: logs, adminError: null }); 
             renderUI();
         }, (error) => {
             setAdminError("Time Log Load Failed: " + error.message);
@@ -210,9 +207,11 @@ export function listenToAllData() {
         const auditQuery = query(collection(state.db, state.audit_logs_path));
         onSnapshot(auditQuery, (snapshot) => {
             const auditLogs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            
             // Client-side sort by timestamp descending (newest first)
             auditLogs.sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis());
-            updateState({ auditLogs: auditLogs.slice(0, 10), adminError: null });
+            
+            updateState({ auditLogs: auditLogs.slice(0, 10), adminError: null }); 
             renderUI();
         }, (error) => {
             setAdminError("Audit Log Load Failed: " + error.message);
@@ -241,7 +240,7 @@ export function listenToAllData() {
  * @param {string} [oldData] - Optional JSON string of old data.
  */
 export async function writeAuditLog(action, details, targetUid, oldData = null) {
-    if (!state.db || !state.currentUser) return;
+    if (!state.db) return;
 
     try {
         const auditCollection = collection(state.db, state.audit_logs_path);
