@@ -98,38 +98,50 @@ export function renderKiosk() {
 
     // Update Name and Camera Section Visibility
     nameDisplay.textContent = state.currentUser.name;
-    const isCameraEnabled = state.currentUser.cameraEnabled && state.ENABLE_CAMERA;
-    cameraSection.style.display = isCameraEnabled ? 'block' : 'none';
+    const isCameraRequired = state.currentUser.cameraEnabled && state.ENABLE_CAMERA;
+    cameraSection.style.display = isCameraRequired ? 'block' : 'none';
 
     // Start/Stop Camera
-    if (isCameraEnabled && currentStatus === 'out') {
+    if (isCameraRequired && currentStatus === 'out') {
         startCamera(webcamFeed);
     } else {
         stopCamera();
     }
 
 
-    // Update Status and Button
-    if (currentStatus === 'in') {
+    // Determine Button State and Status
+    const isStreamActive = state.mediaStream !== null;
+    let buttonDisabled = state.isClocking;
+    
+    // CRITICAL FIX: Disable button if camera is required but stream is not ready
+    if (isCameraRequired && !isStreamActive && currentStatus === 'out') {
+        buttonDisabled = true;
+        clockButton.textContent = 'Camera Starting...';
+        clockButton.classList.add('opacity-50', 'cursor-not-allowed');
+    } else if (currentStatus === 'in') {
         kioskStatus.textContent = 'Clocked In';
         kioskStatus.classList.remove('bg-gray-200');
-        kioskStatus.classList.add('bg-green-500', 'text-white');
+        kioskStatus.classList.add('bg-red-500', 'text-white');
         clockButton.textContent = 'Clock Out';
         clockButton.classList.remove('bg-green-500');
         clockButton.classList.add('bg-red-500', 'hover:bg-red-600');
     } else {
         kioskStatus.textContent = 'Clocked Out';
-        kioskStatus.classList.remove('bg-green-500', 'text-white');
+        kioskStatus.classList.remove('bg-red-500', 'text-white');
         kioskStatus.classList.add('bg-gray-200');
         clockButton.textContent = 'Clock In';
         clockButton.classList.remove('bg-red-500');
         clockButton.classList.add('bg-green-500', 'hover:bg-green-600');
     }
-
-    // Disable button if clocking is in progress
-    clockButton.disabled = state.isClocking;
+    
+    // Apply final button states
+    clockButton.disabled = buttonDisabled;
     if (state.isClocking) {
         clockButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+    } else if (!buttonDisabled) {
+        // Reset button HTML if not processing and not disabled
+        clockButton.innerHTML = clockButton.textContent;
+        clockButton.classList.remove('opacity-50', 'cursor-not-allowed');
     }
 
 
@@ -230,7 +242,7 @@ export function renderTimeLogList() {
     }
     
     // Sort by timestamp descending (newest first)
-    filteredLogs.sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis());
+    filteredLogs.sort((a, b) => b.timestamp.toMillis() - b.timestamp.toMillis()); // NOTE: Still uses client-side sort
 
     tableBody.innerHTML = filteredLogs.map(log => {
         const employee = state.allEmployees[log.employeeUid] || { name: 'Unknown' };

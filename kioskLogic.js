@@ -91,30 +91,30 @@ export async function handleClockAction() {
 
     // Defensive check to prevent double-punching
     if (state.isClocking) return; 
-    updateState({ isClocking: true });
-
+    
     const videoElement = document.getElementById('webcam-feed');
     const { status, uid, cameraEnabled, name } = state.currentUser;
     const type = status === 'in' ? 'out' : 'in';
     let photoData = null;
+    let cameraWarning = false;
+
+    updateState({ isClocking: true }); // Start processing state
 
     if (cameraEnabled && ENABLE_CAMERA) {
-        setAuthMessage(`Capturing photo for clock ${type}...`, false);
-        
-        if (!state.mediaStream) {
-            updateState({ isClocking: false });
-            // Direct the user to check their UI/permissions, as stream should have started on Kiosk load
-            setAuthMessage("Camera stream not active. Check permissions or refresh page.", true); 
-            console.error("CRITICAL CAMERA FAILURE: mediaStream is NULL. Aborting clock action.");
-            return;
-        }
-        
-        photoData = takePhoto(videoElement);
+        if (state.mediaStream) {
+            setAuthMessage(`Capturing photo for clock ${type}...`, false);
+            photoData = takePhoto(videoElement);
 
-        if (!photoData) {
-            updateState({ isClocking: false });
-            setAuthMessage("Photo capture failed. Please ensure camera access is enabled.", true);
-            return;
+            if (!photoData) {
+                // Photo capture failed, but stream was active. Log and continue.
+                cameraWarning = true;
+                setAuthMessage("Warning: Failed to process photo. Clocking in without image.", true);
+            }
+        } else {
+            // Stream was NULL (CRITICAL CAMERA FAILURE). Log and continue without photo.
+            cameraWarning = true;
+            console.error("CRITICAL CAMERA FAILURE: mediaStream is NULL. Proceeding without photo.");
+            setAuthMessage("Warning: Camera stream inactive. Proceeding without photo.", true); 
         }
     }
 
@@ -126,7 +126,7 @@ export async function handleClockAction() {
             employeeName: name, // Ensure employee name is logged
             type: type,
             timestamp: Timestamp.now(),
-            photo: photoData,
+            photo: photoData, // Null if capture failed or stream was inactive
         };
 
         await setDoc(doc(timecardsCollection), logEntry);
@@ -142,7 +142,11 @@ export async function handleClockAction() {
 
         // Clear message and stop camera
         stopCamera();
-        setAuthMessage(`Clock ${type.toUpperCase()} successful at ${new Date().toLocaleTimeString()}.`, false);
+        const successMessage = cameraWarning 
+            ? `Clock ${type.toUpperCase()} successful. (Camera Warning)`
+            : `Clock ${type.toUpperCase()} successful at ${new Date().toLocaleTimeString()}.`;
+            
+        setAuthMessage(successMessage, cameraWarning);
 
     } catch (error) {
         console.error("Clock action failed:", error);
