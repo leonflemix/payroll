@@ -25,20 +25,17 @@ export const state = {
     allLogs: [],
     auditLogs: [],
     
-    // Path Caches (set during initialization)
-    employee_path: null,
-    timecards_logs_path: null,
-    audit_logs_path: null,
+    // Admin Filter State
+    filterEmployeeUid: null,
+    filterStartDate: null,
+    filterEndDate: null,
 
-    // Admin UI State
+    // Processing State
+    isClocking: false,
     adminError: null,
-    filterEmployeeUid: null, // UID currently selected in the admin filter
-    isDarkMode: false, // Example of UI settings
     
-    // Kiosk Data
-    mediaStream: null, // Stores the active camera stream
-    recentLogs: [], // Last 5 logs for current user
-    isClocking: false, // Prevents double-punching
+    // Camera State (Removed for Stability)
+    // mediaStream: null,
 };
 
 /*
@@ -48,21 +45,8 @@ export const state = {
 | Functions to safely update the state object.
 */
 
-/**
- * Updates a single key in the state object.
- * @param {string} key - The state property to update.
- * @param {*} value - The new value.
- */
 export function setAppState(key, value) {
     state[key] = value;
-}
-
-/**
- * Updates multiple properties in the state object.
- * @param {Object} updates - An object containing properties to update.
- */
-export function updateState(updates) {
-    Object.assign(state, updates);
 }
 
 export function setDb(dbInstance) {
@@ -73,10 +57,16 @@ export function setAuth(authInstance) {
     state.auth = authInstance;
 }
 
-export function setUserId(uid) {
-    // No direct need for userId state, but helpful for debugging
+export function updateState(newState) {
+    Object.assign(state, newState);
 }
 
-export function setAdminError(error) {
-    state.adminError = error;
+export function setUserId(uid) {
+    if (state.currentUser) {
+        state.currentUser.uid = uid;
+    }
+}
+
+export function setAdminError(message) {
+    state.adminError = message;
 }

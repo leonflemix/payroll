@@ -1,8 +1,7 @@
 // Filename: kioskLogic.js
 import { state, updateState } from './state.js';
-import { ADMIN_EMAIL, ENABLE_CAMERA } from './constants.js';
-import { setAuthMessage, closeAllModals, renderUI } from './uiRender.js';
-import { takePhoto, stopCamera, startCamera, delay } from './utils.js';
+import { ADMIN_EMAIL } from './constants.js';
+import { setAuthMessage, closeAllModals, navigateTo } from './uiRender.js';
 import { getAuth, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { collection, doc, setDoc, Timestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -42,7 +41,6 @@ export async function handleLogout() {
     if (!state.auth) return;
 
     try {
-        stopCamera();
         await signOut(state.auth);
         closeAllModals();
         
@@ -56,17 +54,12 @@ export async function handleLogout() {
 
 /**
  * Changes the current view in the application.
- * @param {string} targetView - The name of the view to switch to ('login', 'kiosk', 'admin_dashboard').
+ * @param {string} targetView - The name of the view to switch to ('login_view', 'kiosk_view', 'admin_dashboard_view').
  */
 export function navigateTo(targetView) {
     try {
         updateState({ currentView: targetView });
-        renderUI();
-
-        // Handle Camera State (Note: startCamera is now handled in uiRender based on view change)
-        if (targetView !== 'kiosk_view') { // Use the actual view ID
-            stopCamera();
-        }
+        // Rendering is handled by the listener in uiRender.js
 
     } catch (error) {
         console.error("CRITICAL NAVIGATION ERROR:", error);
@@ -84,49 +77,26 @@ export function navigateTo(targetView) {
  * Handles the main clock in/out action handler.
  */
 export async function handleClockAction() {
-    if (!state.db || !state.currentUser) {
-        setAuthMessage("System error: User or database not ready.", true);
+    if (!state.db || !state.currentUser || state.isClocking) {
+        setAuthMessage("System error or busy. Please wait.", true);
         return;
     }
 
-    // Defensive check to prevent double-punching
-    if (state.isClocking) return; 
-    
-    const videoElement = document.getElementById('webcam-feed');
-    const { status, uid, cameraEnabled, name } = state.currentUser;
+    const { status, uid, name } = state.currentUser;
     const type = status === 'in' ? 'out' : 'in';
-    let photoData = null;
-    let cameraWarning = false;
-
-    updateState({ isClocking: true }); // Start processing state
-
-    if (cameraEnabled && ENABLE_CAMERA) {
-        if (state.mediaStream) {
-            // Attempt to capture photo if stream is active
-            photoData = takePhoto(videoElement);
-
-            if (!photoData) {
-                // Photo capture failed, but stream was active. Log and continue.
-                cameraWarning = true;
-                console.warn("Warning: Photo failed to process. Proceeding without image.");
-            }
-        } else {
-            // Stream was NULL (CRITICAL CAMERA FAILURE). Log and continue without photo.
-            cameraWarning = true;
-            // Changed from console.error to console.debug/log to prevent console clutter
-            console.debug("CRITICAL CAMERA FAILURE: mediaStream is NULL. Proceeding without photo."); 
-        }
-    }
+    
+    // Start processing state to prevent double-punching
+    updateState({ isClocking: true }); 
 
     try {
         const timecardsCollection = collection(state.db, state.timecards_logs_path);
 
         const logEntry = {
             employeeUid: uid,
-            employeeName: name, // Ensure employee name is logged
+            employeeName: name, 
             type: type,
             timestamp: Timestamp.now(),
-            photo: photoData, // Null if capture failed or stream was inactive
+            photo: null, // Camera removed, always set to null
         };
 
         await setDoc(doc(timecardsCollection), logEntry);
@@ -137,17 +107,11 @@ export async function handleClockAction() {
                 ...state.currentUser,
                 status: type
             },
-            isClocking: false
+            isClocking: false // End processing state
         });
-
-        // Clear message and stop camera
-        stopCamera();
-        const successMessage = cameraWarning 
-            ? `Clock ${type.toUpperCase()} successful. (Camera Warning in Console)`
-            : `Clock ${type.toUpperCase()} successful at ${new Date().toLocaleTimeString()}.`;
             
-        // Use setAuthMessage to confirm success, only log warning in console
-        setAuthMessage(successMessage, cameraWarning);
+        const successMessage = `Clock ${type.toUpperCase()} successful at ${new Date().toLocaleTimeString()}.`;
+        setAuthMessage(successMessage, false);
 
     } catch (error) {
         console.error("Clock action failed:", error);

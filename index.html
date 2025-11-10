@@ -27,7 +27,6 @@
         .log-table tr:nth-child(even) { background-color: #f9fafb; }
         .log-table tr:hover { background-color: #f3f4f6; }
         .modal-overlay { background-color: rgba(0, 0, 0, 0.5); z-index: 50; }
-        #webcam-feed { width: 100%; height: 240px; background-color: #1f2937; object-fit: cover; border-radius: 0.5rem; }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
@@ -74,13 +73,6 @@
                 <div id="kiosk-status-badge" class="inline-block px-6 py-2 rounded-full text-white font-bold text-xl mb-4 transition-colors duration-300"></div>
                 <!-- handleClockAction is attached via main.js global scope -->
                 <button id="clock-action-btn" onclick="handleClockAction()" class="w-full py-4 rounded-lg font-extrabold text-white text-2xl shadow-lg transition-transform transform hover:scale-[1.01]"></button>
-            </div>
-
-            <!-- Camera Feed (Conditional) -->
-            <div id="camera-section" class="mb-6">
-                <h2 class="text-lg font-semibold mb-2 text-gray-700">Photo Verification</h2>
-                <video id="webcam-feed" autoplay playsinline class="w-full h-48 bg-gray-900 rounded-lg"></video>
-                <canvas id="photo-canvas" class="hidden"></canvas>
             </div>
 
             <!-- Recent Activity -->
@@ -262,11 +254,6 @@
                     </div>
 
                     <div class="flex items-center space-x-4">
-                        <label for="settings-camera" class="text-sm font-medium text-gray-700">Camera Enabled?</label>
-                        <input type="checkbox" id="settings-camera" class="rounded text-indigo-600">
-                    </div>
-
-                    <div class="flex items-center space-x-4">
                         <label for="settings-admin" class="text-sm font-medium text-gray-700">Is Admin?</label>
                         <input type="checkbox" id="settings-admin" class="rounded text-indigo-600">
                     </div>
@@ -308,28 +295,12 @@
                         </div>
                     </div>
                     
-                    <div id="log-photo-group" class="flex justify-between items-center pt-2 hidden">
-                        <button type="button" id="view-log-photo" onclick="showPhotoModal('')" class="btn-secondary px-4 py-2 rounded-lg text-sm"><i class="fas fa-camera mr-1"></i> View Photo</button>
-                        <input type="hidden" id="log-photo-data">
-                    </div>
-
                     <div class="flex justify-end space-x-3 mt-6">
                         <button type="button" onclick="closeLogModal()" class="btn-secondary px-4 py-2 rounded-lg">Cancel</button>
                         <button type="submit" class="btn-primary px-4 py-2 rounded-lg">Save Changes</button>
                     </div>
                 </div>
             </form>
-        </div>
-    </div>
-
-    <!-- Modal: Photo Viewer -->
-    <div id="photo-modal" class="modal-overlay fixed inset-0 flex items-center justify-center p-4 hidden">
-        <div class="card p-4 w-full max-w-lg">
-            <h2 class="text-2xl font-bold mb-4 text-gray-800">Verification Photo</h2>
-            <img id="photo-viewer-img" src="" alt="Verification Photo" class="w-full h-auto rounded-lg shadow-md mb-4">
-            <div class="flex justify-end">
-                <button onclick="closePhotoModal()" class="btn-primary px-4 py-2 rounded-lg">Close</button>
-            </div>
         </div>
     </div>
 

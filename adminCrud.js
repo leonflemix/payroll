@@ -1,8 +1,8 @@
-// Filename: adminCrud.js 
+// Filename: adminCrud.js
 import { state, updateState } from './state.js';
-import { renderEmployeeList, renderTimeLogList, renderAuditLogList, closeAllModals, setAuthMessage, closeSignupModal, closeLogModal, closeSettingsModal, showPhotoModal } from './uiRender.js';
+import { renderEmployeeList, renderTimeLogList, renderAuditLogList, closeAllModals, setAuthMessage, closeSignupModal, closeLogModal, closeSettingsModal } from './uiRender.js';
 import { writeAuditLog, updateEmployeeStatusAfterLogEdit } from './firebase.js';
-import { formatTotalHours, formatTime, formatTimestamp } from './utils.js'; // Added formatTimestamp
+import { formatTotalHours, formatTime, formatTimestamp, calculateShiftTime } from './utils.js';
 import { createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { doc, setDoc, deleteDoc, collection, getDocs, Timestamp, query, where, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -84,12 +84,11 @@ export async function handleEmployeeSignup(event) {
                 email: email,
                 isAdmin: false,
                 status: 'out',
-                cameraEnabled: false,
                 maxDailyHours: 8,
                 breakDeductionMins: 30
             };
 
-            await setDoc(doc(employeeRef), initialData); // Fixed: Removed unnecessary doc() around employeeRef
+            await setDoc(employeeRef, initialData); 
 
             await writeAuditLog('CREATE_USER', `Created new employee: ${name}`, newUid);
             setAuthMessage(`Employee ${name} created successfully!`, false);
@@ -114,7 +113,6 @@ export function toggleSettingsModal(uid) {
     document.getElementById('settings-title').textContent = `Edit Settings: ${emp.name}`;
     document.getElementById('settings-uid').value = uid;
     document.getElementById('settings-admin').checked = emp.isAdmin;
-    document.getElementById('settings-camera').checked = emp.cameraEnabled;
     document.getElementById('settings-max-hours').value = emp.maxDailyHours || 8;
     document.getElementById('settings-break-mins').value = emp.breakDeductionMins || 30;
 
@@ -131,7 +129,6 @@ export async function handleEmployeeSettings(event) {
 
     const uid = document.getElementById('settings-uid').value;
     const isAdmin = document.getElementById('settings-admin').checked;
-    const cameraEnabled = document.getElementById('settings-camera').checked;
     const maxDailyHours = parseFloat(document.getElementById('settings-max-hours').value);
     const breakDeductionMins = parseInt(document.getElementById('settings-break-mins').value, 10);
 
@@ -146,7 +143,6 @@ export async function handleEmployeeSettings(event) {
         const employeeRef = doc(state.db, state.employee_path, uid);
         const updates = {
             isAdmin,
-            cameraEnabled,
             maxDailyHours,
             breakDeductionMins
         };
@@ -167,7 +163,7 @@ export async function handleEmployeeSettings(event) {
  * @param {string} uid - The UID of the employee to delete.
  */
 export async function deleteEmployee(uid) {
-    // Note: Cannot use confirm in an iframe, but retaining for simulated interaction
+    // Note: Cannot use window.confirm in an iframe, this is retained for simulated interaction
     if (!confirm(`Are you sure you want to delete employee ${state.allEmployees[uid]?.name}? This will NOT delete the Firebase Authentication user.`)) return;
 
     const employee = state.allEmployees[uid];
@@ -206,7 +202,6 @@ export function toggleLogModal(logId) {
     document.getElementById('log-title').textContent = 'Add New Time Log';
     document.getElementById('log-id').value = '';
     document.getElementById('log-employee-select').disabled = false;
-    document.getElementById('log-photo-group').classList.add('hidden');
 
     // Populate Employee Select
     const employeeSelect = document.getElementById('log-employee-select');
@@ -233,16 +228,6 @@ export function toggleLogModal(logId) {
         document.getElementById('log-datetime').value = `${datePart}T${timePart}`;
         document.getElementById('log-type').value = log.type;
 
-        // Show photo controls if photo exists
-        const photoGroup = document.getElementById('log-photo-group');
-        const viewPhotoBtn = document.getElementById('view-log-photo');
-        if (log.photo) {
-            photoGroup.classList.remove('hidden');
-            viewPhotoBtn.setAttribute('onclick', `showPhotoModal('${log.photo}')`);
-        } else {
-            photoGroup.classList.add('hidden');
-            viewPhotoBtn.removeAttribute('onclick');
-        }
     } else {
         // Default values for new log
         const now = new Date();
@@ -301,8 +286,9 @@ export async function handleLogSave(event) {
             
             const newLog = {
                 employeeUid: employeeUid,
-                timestamp: newTimestamp,
+                employeeName: state.allEmployees[employeeUid].name,
                 type: type,
+                timestamp: newTimestamp,
                 photo: null 
             };
 
@@ -509,7 +495,7 @@ export async function generatePayrollReport() {
         csv += "Employee,Date/Time,Type\n";
         unpairedPunches.forEach(log => {
             const employee = state.allEmployees[log.employeeUid] || { name: 'Unknown' };
-            csv += `${employee.name},${formatTimestamp(log.timestamp)},${log.type.toUpperCase()}\n`;
+            csv += `${employee.name},${formatTimestamp(log.timestamp)},${log.type.toUpperCase()}\\n`;
         });
     }
 

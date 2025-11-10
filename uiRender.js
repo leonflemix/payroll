@@ -1,7 +1,8 @@
 // Filename: uiRender.js
 import { state, updateState } from './state.js';
-import { startCamera, stopCamera, formatTimestamp, calculateShiftTime, formatTime, formatTotalHours, base64ToArrayBuffer } from './utils.js';
-import { handleEmployeeSettings, toggleSettingsModal, handleEmployeeSignup, deleteEmployee, toggleSignupModal, toggleLogModal, handleLogSave, handleLogDelete, generatePayrollReport } from './adminCrud.js';
+import { handleClockAction, navigateTo } from './kioskLogic.js';
+import { handleEmployeeSignup, deleteEmployee, toggleLogModal, handleLogSave, handleLogDelete, generatePayrollReport, toggleSettingsModal, handleEmployeeSettings, toggleSignupModal, applyFilters } from './adminCrud.js';
+import { formatTimestamp, calculateShiftTime, formatTime, formatTotalHours } from './utils.js';
 
 /*
 |--------------------------------------------------------------------------
@@ -14,27 +15,9 @@ import { handleEmployeeSettings, toggleSettingsModal, handleEmployeeSignup, dele
  */
 export function renderUI() {
     try {
-        const appContainer = document.getElementById('app-container');
-        if (!appContainer) return;
-
-        // Display Auth status message (uses the old static div for consistency)
-        const authStatus = document.getElementById('auth-message-box');
-        if (state.isAuthReady && state.currentUser) {
-            authStatus.innerHTML = `<p>Signed in as: ${state.currentUser.email} (${state.currentUser.name})</p>`;
-            authStatus.classList.add('bg-green-100', 'text-green-800');
-            authStatus.classList.remove('hidden');
-        } else if (state.isAuthReady) {
-            authStatus.innerHTML = `<p>Please login.</p>`;
-            authStatus.classList.add('bg-red-100', 'text-red-800');
-            authStatus.classList.remove('hidden');
-        } else {
-            authStatus.innerHTML = `<p>Connecting to Firebase...</p>`;
-            authStatus.classList.remove('bg-green-100', 'bg-red-100', 'text-green-800', 'text-red-800');
-            authStatus.classList.remove('hidden');
-        }
-        
-        // --- View Switching ---
         const views = ['login_view', 'kiosk_view', 'admin_dashboard_view'];
+        
+        // --- 1. View Switching ---
         views.forEach(viewId => {
             const el = document.getElementById(viewId);
             if (el) {
@@ -42,22 +25,33 @@ export function renderUI() {
             }
         });
 
+        // --- 2. Auth Status Message ---
+        const authStatus = document.getElementById('auth-message-box');
+        if (state.isAuthReady && state.currentUser) {
+            authStatus.textContent = `Signed in as: ${state.currentUser.email} (${state.currentUser.name})`;
+            authStatus.classList.remove('bg-red-200', 'hidden');
+            authStatus.classList.add('bg-green-200');
+        } else if (state.isAuthReady) {
+            authStatus.textContent = `Please log in.`;
+            authStatus.classList.remove('bg-green-200', 'hidden');
+            authStatus.classList.add('bg-red-200');
+        } else {
+            authStatus.textContent = `Connecting to Firebase...`;
+            authStatus.classList.remove('bg-red-200', 'bg-green-200', 'hidden');
+        }
 
-        // --- Render Kiosk View ---
+
+        // --- 3. View-Specific Rendering ---
         if (state.currentView === 'kiosk_view' && state.currentUser) {
             renderKiosk();
         }
 
-        // --- Render Admin Dashboard ---
-        if (state.currentView === 'admin_dashboard_view' && state.currentUser?.isAdmin) {
-            initTabSwitching(); // Initialize tab listeners
-            
-            // Only attempt to render data tables if listeners have loaded (state.allEmployees is populated)
-            if (Object.keys(state.allEmployees).length > 0) {
-                renderEmployeeList();
-                renderTimeLogList();
-                renderAuditLogList();
-            }
+        if (state.currentView === 'admin_dashboard_view') {
+            // Admin Dashboard is built dynamically
+            renderEmployeeList();
+            renderTimeLogList();
+            renderAuditLogList();
+            initTabSwitching();
 
             // Display Admin Dashboard Error
             const adminErrorEl = document.getElementById('admin-error-message');
@@ -68,9 +62,9 @@ export function renderUI() {
                 adminErrorEl.classList.add('hidden');
             }
         }
-        
+
     } catch (error) {
-        // CRITICAL: If renderUI fails, this logs the exact component/line that caused the crash.
+        // CRITICAL: Logs the exact component/line that caused the crash.
         console.error("FATAL UI RENDERING ERROR. App is unstable:", error);
     }
 }
@@ -87,73 +81,43 @@ export function renderUI() {
 export function renderKiosk() {
     if (!state.currentUser) return;
 
-    const kioskStatus = document.getElementById('kiosk-status-badge');
+    const kioskStatusBadge = document.getElementById('kiosk-status-badge');
     const clockButton = document.getElementById('clock-action-btn');
     const recentActivity = document.getElementById('recent-activity-list');
     const nameDisplay = document.getElementById('kiosk-employee-name');
     const currentStatus = state.currentUser.status || 'out';
-    const cameraSection = document.getElementById('camera-section');
-    const webcamFeed = document.getElementById('webcam-feed');
 
-
-    // Update Name and Camera Section Visibility
+    // Update Name and Status
     nameDisplay.textContent = state.currentUser.name;
-    const isCameraRequired = state.currentUser.cameraEnabled && state.ENABLE_CAMERA;
-    cameraSection.style.display = isCameraRequired ? 'block' : 'none';
 
-    // Start/Stop Camera
-    if (isCameraRequired && currentStatus === 'out') {
-        startCamera(webcamFeed);
-    } else {
-        stopCamera();
-    }
-
-
-    // Determine Button State and Status
-    const isStreamActive = state.mediaStream !== null;
-    let buttonDisabled = state.isClocking;
-    
-    // CRITICAL FIX: Disable button if camera is required but stream is not ready
-    if (isCameraRequired && !isStreamActive && currentStatus === 'out') {
-        buttonDisabled = true;
-        clockButton.textContent = 'Camera Starting...';
-        clockButton.classList.add('opacity-50', 'cursor-not-allowed');
-    } else if (currentStatus === 'in') {
-        kioskStatus.textContent = 'Clocked In';
-        kioskStatus.classList.remove('bg-gray-200');
-        kioskStatus.classList.add('bg-red-500', 'text-white');
+    if (currentStatus === 'in') {
+        kioskStatusBadge.textContent = 'Clocked In';
+        kioskStatusBadge.classList.remove('bg-gray-200', 'bg-red-500');
+        kioskStatusBadge.classList.add('bg-green-500', 'text-white');
         clockButton.textContent = 'Clock Out';
         clockButton.classList.remove('bg-green-500');
         clockButton.classList.add('bg-red-500', 'hover:bg-red-600');
     } else {
-        kioskStatus.textContent = 'Clocked Out';
-        kioskStatus.classList.remove('bg-red-500', 'text-white');
-        kioskStatus.classList.add('bg-gray-200');
+        kioskStatusBadge.textContent = 'Clocked Out';
+        kioskStatusBadge.classList.remove('bg-green-500', 'text-white');
+        kioskStatusBadge.classList.add('bg-gray-200');
         clockButton.textContent = 'Clock In';
         clockButton.classList.remove('bg-red-500');
         clockButton.classList.add('bg-green-500', 'hover:bg-green-600');
     }
-    
-    // Apply final button states
-    clockButton.disabled = buttonDisabled;
-    if (state.isClocking) {
-        clockButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
-    } else if (!buttonDisabled) {
-        // Reset button HTML if not processing and not disabled
-        clockButton.innerHTML = clockButton.textContent;
-        clockButton.classList.remove('opacity-50', 'cursor-not-allowed');
-    }
 
+    // Disable button if currently processing a clock action
+    clockButton.disabled = state.isClocking;
 
     // --- Render Recent Activity ---
-    if (recentActivity) {
-        recentActivity.innerHTML = state.recentLogs.map(log => `
+    if (recentActivity && state.currentUserLogs) {
+        recentActivity.innerHTML = state.currentUserLogs.map(log => `
             <li class="flex justify-between items-center py-2 px-3 border-b last:border-b-0">
                 <span class="${log.type === 'in' ? 'text-green-600' : 'text-red-600'} font-semibold">${log.type.toUpperCase()}</span>
                 <span class="text-sm text-gray-600">${formatTimestamp(log.timestamp)}</span>
             </li>
         `).join('');
-        if (state.recentLogs.length === 0) {
+        if (state.currentUserLogs.length === 0) {
             recentActivity.innerHTML = '<li class="p-3 text-center text-gray-500">No recent activity.</li>';
         }
     }
@@ -164,6 +128,44 @@ export function renderKiosk() {
 | 3. ADMIN DASHBOARD RENDERING
 |--------------------------------------------------------------------------
 */
+
+/**
+ * Initializes click handlers for Admin Tabs (run once on Admin Dashboard load).
+ */
+function initTabSwitching() {
+    const tabsContainer = document.getElementById('admin-tabs');
+    if (tabsContainer) {
+        tabsContainer.addEventListener('click', (e) => {
+            const target = e.target.closest('.tab-button');
+            if (target) {
+                switchTab(target.getAttribute('data-target'));
+            }
+        });
+    }
+    // Ensure the default tab is displayed on first load
+    switchTab('employee-management');
+}
+
+/**
+ * Switches the active tab on the Admin Dashboard.
+ * @param {string} targetId - ID of the tab content to show.
+ */
+export function switchTab(targetId) {
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.add('hidden');
+    });
+    document.getElementById(targetId).classList.remove('hidden');
+
+    document.querySelectorAll('.tab-button').forEach(button => {
+        if (button.getAttribute('data-target') === targetId) {
+            button.classList.remove('text-gray-500', 'border-transparent', 'hover:text-gray-700', 'hover:border-gray-300');
+            button.classList.add('text-indigo-600', 'border-indigo-500');
+        } else {
+            button.classList.remove('text-indigo-600', 'border-indigo-500');
+            button.classList.add('text-gray-500', 'border-transparent', 'hover:text-gray-700', 'hover:border-gray-300');
+        }
+    });
+}
 
 /**
  * Renders the Employee Management table.
@@ -189,10 +191,10 @@ export function renderEmployeeList() {
                     ${emp.isAdmin ? 'Admin' : 'Employee'}
                 </span>
             </td>
-            <td class="px-6 py-3 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                <button onclick="toggleSettingsModal('${emp.uid}')" class="text-indigo-600 hover:text-indigo-900">Edit Settings</button>
-                <button onclick="toggleSignupModal('${emp.uid}')" class="text-blue-600 hover:text-blue-900">Edit Profile</button>
-                <button onclick="deleteEmployee('${emp.uid}')" class="text-red-600 hover:text-red-900">Delete</button>
+            <td class="px-6 py-3 whitespace-nowrap text-right text-sm font-medium">
+                <button onclick="toggleSettingsModal('${emp.id}')" class="text-indigo-600 hover:text-indigo-900 mr-3">Edit Settings</button>
+                <button onclick="toggleSignupModal('${emp.id}')" class="text-blue-600 hover:text-blue-900 mr-3">Edit Name/Email</button>
+                <button onclick="deleteEmployee('${emp.id}')" class="text-red-600 hover:text-red-900">Delete</button>
             </td>
         </tr>
     `).join('');
@@ -210,20 +212,22 @@ export function renderTimeLogList() {
     if (!tableBody || !state.allLogs || !state.allEmployees) return;
 
     // --- Populate Employee Filter Dropdown ---
-    if (employeeFilter && employeeFilter.children.length <= 1) { 
+    if (employeeFilter && employeeFilter.children.length <= 1) { // Only populate once
         const employees = Object.values(state.allEmployees).sort((a, b) => a.name.localeCompare(b.name));
         employeeFilter.innerHTML = '<option value="">-- All Employees --</option>' + employees.map(emp =>
-            `<option value="${emp.uid}">${emp.name}</option>`
+            `<option value="${emp.id}">${emp.name}</option>`
         ).join('');
+        // Re-set the selected value if it exists in state
+        if (state.filterEmployeeUid) {
+            employeeFilter.value = state.filterEmployeeUid;
+        }
     }
 
-    // --- Apply Filtering based on DOM values (since applyFilters is called) ---
+    // --- Apply Filtering ---
+    let filteredLogs = state.allLogs;
     const employeeUid = employeeFilter.value;
     const startDate = startDateFilter.value ? new Date(startDateFilter.value) : null;
     const endDate = endDateFilter.value ? new Date(endDateFilter.value) : null;
-
-
-    let filteredLogs = state.allLogs;
 
     // Filter by Employee UID
     if (employeeUid && employeeUid !== "") {
@@ -232,21 +236,23 @@ export function renderTimeLogList() {
 
     // Filter by Date Range
     if (startDate) {
+        // Start date should include the entire day, so we compare against start of day
         const startTimestamp = startDate.getTime();
         filteredLogs = filteredLogs.filter(log => log.timestamp.toMillis() >= startTimestamp);
     }
 
     if (endDate) {
-        const endTimestamp = endDate.getTime() + 86400000; // End of the day
+        // End date should include the entire day, up to the last millisecond
+        const endTimestamp = endDate.getTime() + 86400000; // Add 24 hours
         filteredLogs = filteredLogs.filter(log => log.timestamp.toMillis() < endTimestamp);
     }
     
     // Sort by timestamp descending (newest first)
-    filteredLogs.sort((a, b) => b.timestamp.toMillis() - b.timestamp.toMillis()); // NOTE: Still uses client-side sort
+    filteredLogs.sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis());
 
     tableBody.innerHTML = filteredLogs.map(log => {
-        const employee = state.allEmployees[log.employeeUid] || { name: 'Unknown' };
-        const hasPhoto = !!log.photo;
+        const employee = state.allEmployees[log.employeeUid] || { name: 'Unknown', email: 'N/A' };
+        const hasPhoto = !!log.photo; // Photo is null since feature was removed
 
         return `
             <tr class="border-b hover:bg-gray-50">
@@ -259,14 +265,15 @@ export function renderTimeLogList() {
                 </td>
                 <td class="px-6 py-3 text-center">
                     ${hasPhoto ? 
-                        `<button onclick="showPhotoModal('${log.photo}')" class="text-blue-600 hover:text-blue-900 text-sm">View Photo</button>` :
+                        `<span class="text-green-600">Yes</span>` :
                         `<span class="inline-flex items-center text-red-500 text-sm">
-                            <i class="fas fa-camera-slash mr-1"></i> N/A
+                            <i class="fas fa-camera-slash mr-1"></i>
+                            N/A
                         </span>`
                     }
                 </td>
-                <td class="px-6 py-3 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                    <button onclick="toggleLogModal('${log.id}')" class="text-indigo-600 hover:text-indigo-900">Edit</button>
+                <td class="px-6 py-3 whitespace-nowrap text-right text-sm font-medium">
+                    <button onclick="toggleLogModal('${log.id}')" class="text-indigo-600 hover:text-indigo-900 mr-3">Edit</button>
                     <button onclick="handleLogDelete('${log.id}')" class="text-red-600 hover:text-red-900">Delete</button>
                 </td>
             </tr>
@@ -285,13 +292,15 @@ export function renderAuditLogList() {
     const tableBody = document.getElementById('audit-log-list-body');
     if (!tableBody || !state.auditLogs || !state.allEmployees) return;
 
-    // Use state.auditLogs which is already sorted and sliced to 10
-    const recentLogs = state.auditLogs;
+    // Sort by timestamp descending (newest first) and take the last 10
+    const recentLogs = state.auditLogs
+        .sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis())
+        .slice(0, 10);
 
     tableBody.innerHTML = recentLogs.map(log => {
         const admin = state.allEmployees[log.adminUid] || { name: 'Unknown Admin' };
         const targetEmployee = state.allEmployees[log.targetUid] || { name: 'N/A' };
-        const actionType = log.action === 'EDIT_LOG' || log.action === 'EDIT_SETTINGS' || log.action === 'EDIT_PROFILE' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800';
+        const actionType = log.action.includes('EDIT') ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800';
         
         return `
             <tr class="border-b hover:bg-gray-50">
@@ -313,48 +322,9 @@ export function renderAuditLogList() {
     }
 }
 
-/**
- * Initializes the tab switching logic for the Admin Dashboard.
- */
-export function initTabSwitching() {
-    // Note: Tab switching is handled by the global 'switchTab' function called from HTML onclick attributes.
-    // We only need to ensure the default tab is shown on initial render.
-    switchTab('employee-management'); 
-}
-
-/**
- * Switches the active tab in the Admin Dashboard.
- * @param {string} targetId - The ID of the tab content div to show.
- */
-export function switchTab(targetId) {
-    // Deactivate all buttons and hide all content
-    document.querySelectorAll('.tab-button').forEach(btn => {
-        btn.classList.remove('text-indigo-600', 'border-indigo-500');
-        btn.classList.add('text-gray-500', 'border-transparent', 'hover:text-gray-700', 'hover:border-gray-300');
-    });
-
-    document.querySelectorAll('.tab-content').forEach(content => {
-        content.classList.add('hidden');
-    });
-
-    // Activate selected button and show content
-    const targetButton = document.querySelector(`.tab-button[data-target="${targetId}"]`);
-    const targetContent = document.getElementById(targetId);
-
-    if (targetButton) {
-        targetButton.classList.add('text-indigo-600', 'border-indigo-500');
-        targetButton.classList.remove('text-gray-500', 'border-transparent', 'hover:text-gray-700', 'hover:border-gray-300');
-    }
-
-    if (targetContent) {
-        targetContent.classList.remove('hidden');
-    }
-}
-
-
 /*
 |--------------------------------------------------------------------------
-| 4. MODAL CONTROLS
+| 4. MODAL AND FILTER CONTROLS
 |--------------------------------------------------------------------------
 */
 
@@ -366,25 +336,14 @@ export function closeLogModal() {
     document.getElementById('log-modal').classList.add('hidden');
 }
 
-export function showPhotoModal(base64Image) {
-    const modal = document.getElementById('photo-modal');
-    const imgEl = document.getElementById('photo-viewer-img');
-    if (modal && imgEl) {
-        imgEl.src = base64Image;
-        modal.classList.remove('hidden');
-    }
-}
-
-export function closePhotoModal() {
-    document.getElementById('photo-modal').classList.add('hidden');
-}
-
 export function closeSettingsModal() {
     document.getElementById('employee-settings-modal').classList.add('hidden');
 }
 
+/**
+ * Re-renders the time log list when filters are changed.
+ */
 export function applyFilters() {
-    // This is called from the HTML buttons to trigger a re-render of the log table
     renderTimeLogList();
 }
 
@@ -394,7 +353,6 @@ export function applyFilters() {
 export function closeAllModals() {
     closeSignupModal();
     closeLogModal();
-    closePhotoModal();
     closeSettingsModal();
 }
 
@@ -407,16 +365,12 @@ export function setAuthMessage(message, isError = false) {
     const authStatus = document.getElementById('auth-message-box');
     if (authStatus) {
         authStatus.textContent = message;
-        authStatus.classList.remove('bg-green-100', 'bg-red-100', 'text-green-800', 'text-red-800', 'hidden');
-        authStatus.classList.add(isError ? 'bg-red-100' : 'bg-green-100', isError ? 'text-red-800' : 'text-green-800');
+        authStatus.classList.remove('bg-green-200', 'bg-red-200', 'hidden');
+        authStatus.classList.add(isError ? 'bg-red-200' : 'bg-green-200');
 
         // Clear the message after a delay
         setTimeout(() => {
-            // Re-render the UI to restore the default status message (handled by renderUI's initial check)
-            if (authStatus.textContent === message) {
-                authStatus.classList.add('hidden');
-                authStatus.textContent = '';
-            }
+            renderUI(); // Re-render the UI to restore the default status message
         }, 5000);
     }
 }
