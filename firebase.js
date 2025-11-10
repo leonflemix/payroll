@@ -39,7 +39,7 @@ export async function initFirebase() {
             } else {
                 // User is signed out (or initial state)
                 updateState({ currentUser: null, isAuthReady: true });
-                navigateTo('login');
+                navigateTo('login_view'); // Use the actual view ID
             }
             // isAuthReady set here after initial check is complete
             updateState({ isAuthReady: true });
@@ -75,10 +75,10 @@ export async function fetchAndSetCurrentUser(user) {
 
             if (userData.isAdmin) {
                 listenToAllData();
-                navigateTo('admin_dashboard');
+                navigateTo('admin_dashboard_view');
             } else {
                 listenToUserLogs(user.uid);
-                navigateTo('kiosk');
+                navigateTo('kiosk_view');
             }
             renderUI();
 

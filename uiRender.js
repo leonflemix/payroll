@@ -50,7 +50,7 @@ export function renderUI() {
 
         // --- Render Admin Dashboard ---
         if (state.currentView === 'admin_dashboard_view' && state.currentUser?.isAdmin) {
-            initTabSwitching(); // NEW: Initialize tab listeners
+            initTabSwitching(); // Initialize tab listeners
             
             // Only attempt to render data tables if listeners have loaded (state.allEmployees is populated)
             if (Object.keys(state.allEmployees).length > 0) {
@@ -305,23 +305,9 @@ export function renderAuditLogList() {
  * Initializes the tab switching logic for the Admin Dashboard.
  */
 export function initTabSwitching() {
-    const tabsContainer = document.getElementById('admin-tabs');
-    if (!tabsContainer) return;
-
-    // Remove old listeners to prevent stacking
-    // Note: Since this environment doesn't allow easy listener removal by reference, 
-    // we rely on the single event handler model.
-
-    // Attach click handler to the container
-    tabsContainer.onclick = (e) => {
-        const button = e.target.closest('.tab-button');
-        if (button) {
-            switchTab(button.dataset.target);
-        }
-    };
-    
-    // Ensure the initial tab is correctly displayed (Employee Management)
-    switchTab('employee-management');
+    // Note: Tab switching is handled by the global 'switchTab' function called from HTML onclick attributes.
+    // We only need to ensure the default tab is shown on initial render.
+    switchTab('employee-management'); 
 }
 
 /**

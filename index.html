@@ -105,9 +105,10 @@
             <!-- Admin Navigation Tabs -->
             <div class="mb-6 border-b border-gray-200">
                 <nav class="-mb-px flex space-x-8" id="admin-tabs" role="tablist">
-                    <button class="py-2 px-1 border-b-2 font-medium text-sm focus:outline-none transition duration-150 ease-in-out tab-button text-indigo-600 border-indigo-500" data-target="employee-management">Employee Management</button>
-                    <button class="py-2 px-1 border-b-2 font-medium text-sm focus:outline-none transition duration-150 ease-in-out tab-button text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300" data-target="log-management">Time Log Management</button>
-                    <button class="py-2 px-1 border-b-2 font-medium text-sm focus:outline-none transition duration-150 ease-in-out tab-button text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300" data-target="audit-history">Audit History</button>
+                    <!-- switchTab is attached via main.js global scope -->
+                    <button onclick="switchTab('employee-management')" class="py-2 px-1 border-b-2 font-medium text-sm focus:outline-none transition duration-150 ease-in-out tab-button text-indigo-600 border-indigo-500" data-target="employee-management">Employee Management</button>
+                    <button onclick="switchTab('log-management')" class="py-2 px-1 border-b-2 font-medium text-sm focus:outline-none transition duration-150 ease-in-out tab-button text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300" data-target="log-management">Time Log Management</button>
+                    <button onclick="switchTab('audit-history')" class="py-2 px-1 border-b-2 font-medium text-sm focus:outline-none transition duration-150 ease-in-out tab-button text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300" data-target="audit-history">Audit History</button>
                 </nav>
             </div>
 

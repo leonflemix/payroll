@@ -1,6 +1,6 @@
 // Filename: utils.js
 import { state, updateState } from './state.js';
-import { ENABLE_CAMERA } from './constants.js'; // Import global flag
+import { ENABLE_CAMERA } from './constants.js'; 
 
 /*
 |--------------------------------------------------------------------------
@@ -13,7 +13,7 @@ import { ENABLE_CAMERA } from './constants.js'; // Import global flag
  * @param {HTMLVideoElement} videoElement - The video element to display the stream.
  */
 export function startCamera(videoElement) {
-    if (!ENABLE_CAMERA || !videoElement) return; // Use imported ENABLE_CAMERA
+    if (!ENABLE_CAMERA || !videoElement) return; 
     
     try {
         if (state.mediaStream) {

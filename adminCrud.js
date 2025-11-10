@@ -2,7 +2,7 @@
 import { state, updateState } from './state.js';
 import { renderEmployeeList, renderTimeLogList, renderAuditLogList, closeAllModals, setAuthMessage, closeSignupModal, closeLogModal, closeSettingsModal, showPhotoModal } from './uiRender.js';
 import { writeAuditLog, updateEmployeeStatusAfterLogEdit } from './firebase.js';
-import { formatTotalHours, formatTime } from './utils.js';
+import { formatTotalHours, formatTime, formatTimestamp } from './utils.js'; // Added formatTimestamp
 import { createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { doc, setDoc, deleteDoc, collection, getDocs, Timestamp, query, where, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -98,27 +98,6 @@ export async function handleEmployeeSignup(event) {
             setAuthMessage(`Sign Up failed: ${error.message}`, true);
         }
     }
-}
-
-/**
- * Toggles the Employee Settings modal.
- * @param {string} uid - The UID of the employee to edit settings for.
- */
-export function toggleSettingsModal(uid) {
-    const modal = document.getElementById('employee-settings-modal');
-    const form = document.getElementById('employee-settings-form');
-    if (!modal || !form || !state.allEmployees[uid]) return;
-
-    const emp = state.allEmployees[uid];
-
-    document.getElementById('settings-title').textContent = `Edit Settings: ${emp.name}`;
-    document.getElementById('settings-uid').value = emp.uid;
-    document.getElementById('settings-admin').checked = emp.isAdmin;
-    document.getElementById('settings-camera').checked = emp.cameraEnabled;
-    document.getElementById('settings-max-hours').value = emp.maxDailyHours || 8;
-    document.getElementById('settings-break-mins').value = emp.breakDeductionMins || 30;
-
-    modal.classList.remove('hidden');
 }
 
 /**
@@ -365,7 +344,7 @@ export async function generatePayrollReport() {
 
     const startDateFilter = document.getElementById('filter-start-date');
     const endDateFilter = document.getElementById('filter-end-date');
-    const employeeFilter = document.getElementById('filter-employee-select'); // Get the select element
+    const employeeFilter = document.getElementById('filter-employee-select'); 
 
     // Update state based on current filters for consistency
     const employeeUid = employeeFilter.value || null;

@@ -2,7 +2,7 @@
 import { initFirebase } from './firebase.js';
 import { handleLogin, handleLogout, handleClockAction } from './kioskLogic.js';
 import { toggleSignupModal, handleEmployeeSignup, handleEmployeeSettings, deleteEmployee, toggleSettingsModal, toggleLogModal, handleLogSave, handleLogDelete, generatePayrollReport } from './adminCrud.js';
-import { closeSignupModal, closeLogModal, showPhotoModal, closePhotoModal, closeSettingsModal, applyFilters, closeAllModals, setAuthMessage } from './uiRender.js';
+import { closeSignupModal, closeLogModal, showPhotoModal, closePhotoModal, closeSettingsModal, applyFilters, closeAllModals, setAuthMessage, switchTab } from './uiRender.js';
 
 /*
 |--------------------------------------------------------------------------
@@ -20,6 +20,7 @@ window.onload = function() {
     window.handleLogin = handleLogin;
     window.handleLogout = handleLogout;
     window.handleClockAction = handleClockAction;
+    window.switchTab = switchTab; // CRITICAL FIX: Expose switchTab
 
     // Admin CRUD Functions
     window.handleEmployeeSignup = handleEmployeeSignup;

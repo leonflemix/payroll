@@ -38,6 +38,7 @@ export const state = {
     // Kiosk Data
     mediaStream: null, // Stores the active camera stream
     recentLogs: [], // Last 5 logs for current user
+    isClocking: false, // Prevents double-punching
 };
 
 /*

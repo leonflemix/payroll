@@ -64,7 +64,7 @@ export function navigateTo(targetView) {
         renderUI();
 
         // Handle Camera State (Note: startCamera is now handled in uiRender based on view change)
-        if (targetView !== 'kiosk') {
+        if (targetView !== 'kiosk_view') { // Use the actual view ID
             stopCamera();
         }
 
@@ -94,14 +94,13 @@ export async function handleClockAction() {
     updateState({ isClocking: true });
 
     const videoElement = document.getElementById('webcam-feed');
-    const { status, uid, cameraEnabled } = state.currentUser;
+    const { status, uid, cameraEnabled, name } = state.currentUser;
     const type = status === 'in' ? 'out' : 'in';
     let photoData = null;
 
     if (cameraEnabled && ENABLE_CAMERA) {
         setAuthMessage(`Capturing photo for clock ${type}...`, false);
         
-        // --- CRITICAL CHANGE: We rely only on the stream being ready now ---
         if (!state.mediaStream) {
             updateState({ isClocking: false });
             // Direct the user to check their UI/permissions, as stream should have started on Kiosk load
@@ -124,7 +123,7 @@ export async function handleClockAction() {
 
         const logEntry = {
             employeeUid: uid,
-            employeeName: state.currentUser.name,
+            employeeName: name, // Ensure employee name is logged
             type: type,
             timestamp: Timestamp.now(),
             photo: photoData,
@@ -137,7 +136,8 @@ export async function handleClockAction() {
             currentUser: {
                 ...state.currentUser,
                 status: type
-            }
+            },
+            isClocking: false
         });
 
         // Clear message and stop camera
@@ -147,7 +147,6 @@ export async function handleClockAction() {
     } catch (error) {
         console.error("Clock action failed:", error);
         setAuthMessage(`Clock action failed: ${error.message}`, true);
+        updateState({ isClocking: false });
     }
-    
-    updateState({ isClocking: false });
 }
