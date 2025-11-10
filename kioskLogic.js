@@ -1,7 +1,7 @@
 // Filename: kioskLogic.js
 import { state, updateState } from './state.js';
 import { ADMIN_EMAIL } from './constants.js';
-import { setAuthMessage, closeAllModals, navigateTo } from './uiRender.js';
+import { setAuthMessage, closeAllModals, renderUI } from './uiRender.js'; // navigateTo removed from import here
 import { getAuth, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { collection, doc, setDoc, Timestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -59,7 +59,7 @@ export async function handleLogout() {
 export function navigateTo(targetView) {
     try {
         updateState({ currentView: targetView });
-        // Rendering is handled by the listener in uiRender.js
+        renderUI(); // Call renderUI to switch view
 
     } catch (error) {
         console.error("CRITICAL NAVIGATION ERROR:", error);

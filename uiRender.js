@@ -1,8 +1,8 @@
 // Filename: uiRender.js
 import { state, updateState } from './state.js';
 import { handleClockAction, navigateTo } from './kioskLogic.js';
-import { handleEmployeeSignup, deleteEmployee, toggleLogModal, handleLogSave, handleLogDelete, generatePayrollReport, toggleSettingsModal, handleEmployeeSettings, toggleSignupModal, applyFilters } from './adminCrud.js';
-import { formatTimestamp, calculateShiftTime, formatTime, formatTotalHours } from './utils.js';
+import { handleEmployeeSignup, deleteEmployee, toggleLogModal, handleLogSave, handleLogDelete, generatePayrollReport, toggleSettingsModal, handleEmployeeSettings, toggleSignupModal, applyFilters, handleAdminLogin } from './adminCrud.js';
+import { formatTimestamp, formatTotalHours } from './utils.js';
 
 /*
 |--------------------------------------------------------------------------
@@ -51,7 +51,7 @@ export function renderUI() {
             renderEmployeeList();
             renderTimeLogList();
             renderAuditLogList();
-            initTabSwitching();
+            // initTabSwitching(); // Removed, now called via onclick in index.html
 
             // Display Admin Dashboard Error
             const adminErrorEl = document.getElementById('admin-error-message');
