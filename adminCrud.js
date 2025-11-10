@@ -1,4 +1,4 @@
-// Filename: adminCrud.js
+// Filename: adminCrud.js 
 import { state, updateState } from './state.js';
 import { renderEmployeeList, renderTimeLogList, renderAuditLogList, closeAllModals, setAuthMessage, closeSignupModal, closeLogModal, closeSettingsModal, showPhotoModal } from './uiRender.js';
 import { writeAuditLog, updateEmployeeStatusAfterLogEdit } from './firebase.js';
