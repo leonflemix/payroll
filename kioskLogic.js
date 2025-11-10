@@ -113,7 +113,8 @@ export async function handleClockAction() {
         } else {
             // Stream was NULL (CRITICAL CAMERA FAILURE). Log and continue without photo.
             cameraWarning = true;
-            console.error("CRITICAL CAMERA FAILURE: mediaStream is NULL. Proceeding without photo.");
+            // Changed from console.error to console.debug/log to prevent console clutter
+            console.debug("CRITICAL CAMERA FAILURE: mediaStream is NULL. Proceeding without photo."); 
         }
     }
 
