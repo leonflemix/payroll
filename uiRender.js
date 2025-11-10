@@ -1,7 +1,7 @@
 // Filename: uiRender.js
 import { state, updateState } from './state.js';
 import { handleClockAction, navigateTo } from './kioskLogic.js';
-import { handleEmployeeSignup, deleteEmployee, toggleLogModal, handleLogSave, handleLogDelete, generatePayrollReport, toggleSettingsModal, handleEmployeeSettings, toggleSignupModal, applyFilters, handleAdminLogin } from './adminCrud.js';
+import { handleEmployeeSignup, deleteEmployee, toggleLogModal, handleLogSave, handleLogDelete, generatePayrollReport, toggleSettingsModal, handleEmployeeSettings, toggleSignupModal, handleAdminLogin } from './adminCrud.js';
 import { formatTimestamp, formatTotalHours } from './utils.js';
 
 /*
@@ -51,7 +51,6 @@ export function renderUI() {
             renderEmployeeList();
             renderTimeLogList();
             renderAuditLogList();
-            // initTabSwitching(); // Removed, now called via onclick in index.html
 
             // Display Admin Dashboard Error
             const adminErrorEl = document.getElementById('admin-error-message');
@@ -128,23 +127,6 @@ export function renderKiosk() {
 | 3. ADMIN DASHBOARD RENDERING
 |--------------------------------------------------------------------------
 */
-
-/**
- * Initializes click handlers for Admin Tabs (run once on Admin Dashboard load).
- */
-function initTabSwitching() {
-    const tabsContainer = document.getElementById('admin-tabs');
-    if (tabsContainer) {
-        tabsContainer.addEventListener('click', (e) => {
-            const target = e.target.closest('.tab-button');
-            if (target) {
-                switchTab(target.getAttribute('data-target'));
-            }
-        });
-    }
-    // Ensure the default tab is displayed on first load
-    switchTab('employee-management');
-}
 
 /**
  * Switches the active tab on the Admin Dashboard.
