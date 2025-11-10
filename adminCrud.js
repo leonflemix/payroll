@@ -89,7 +89,7 @@ export async function handleEmployeeSignup(event) {
                 breakDeductionMins: 30
             };
 
-            await setDoc(employeeRef, initialData);
+            await setDoc(doc(employeeRef), initialData); // Fixed: Removed unnecessary doc() around employeeRef
 
             await writeAuditLog('CREATE_USER', `Created new employee: ${name}`, newUid);
             setAuthMessage(`Employee ${name} created successfully!`, false);
@@ -98,6 +98,27 @@ export async function handleEmployeeSignup(event) {
             setAuthMessage(`Sign Up failed: ${error.message}`, true);
         }
     }
+}
+
+/**
+ * Toggles the Employee Settings modal.
+ * @param {string} uid - The UID of the employee to edit settings for.
+ */
+export function toggleSettingsModal(uid) {
+    const modal = document.getElementById('employee-settings-modal');
+    const form = document.getElementById('employee-settings-form');
+    if (!modal || !form || !state.allEmployees[uid]) return;
+
+    const emp = state.allEmployees[uid];
+
+    document.getElementById('settings-title').textContent = `Edit Settings: ${emp.name}`;
+    document.getElementById('settings-uid').value = uid;
+    document.getElementById('settings-admin').checked = emp.isAdmin;
+    document.getElementById('settings-camera').checked = emp.cameraEnabled;
+    document.getElementById('settings-max-hours').value = emp.maxDailyHours || 8;
+    document.getElementById('settings-break-mins').value = emp.breakDeductionMins || 30;
+
+    modal.classList.remove('hidden');
 }
 
 /**
