@@ -102,19 +102,18 @@ export async function handleClockAction() {
 
     if (cameraEnabled && ENABLE_CAMERA) {
         if (state.mediaStream) {
-            setAuthMessage(`Capturing photo for clock ${type}...`, false);
+            // Attempt to capture photo if stream is active
             photoData = takePhoto(videoElement);
 
             if (!photoData) {
                 // Photo capture failed, but stream was active. Log and continue.
                 cameraWarning = true;
-                setAuthMessage("Warning: Failed to process photo. Clocking in without image.", true);
+                console.warn("Warning: Photo failed to process. Proceeding without image.");
             }
         } else {
             // Stream was NULL (CRITICAL CAMERA FAILURE). Log and continue without photo.
             cameraWarning = true;
             console.error("CRITICAL CAMERA FAILURE: mediaStream is NULL. Proceeding without photo.");
-            setAuthMessage("Warning: Camera stream inactive. Proceeding without photo.", true); 
         }
     }
 
@@ -143,9 +142,10 @@ export async function handleClockAction() {
         // Clear message and stop camera
         stopCamera();
         const successMessage = cameraWarning 
-            ? `Clock ${type.toUpperCase()} successful. (Camera Warning)`
+            ? `Clock ${type.toUpperCase()} successful. (Camera Warning in Console)`
             : `Clock ${type.toUpperCase()} successful at ${new Date().toLocaleTimeString()}.`;
             
+        // Use setAuthMessage to confirm success, only log warning in console
         setAuthMessage(successMessage, cameraWarning);
 
     } catch (error) {
