@@ -1,9 +1,9 @@
 // Filename: kioskLogic.js
 import { state, updateState } from './state.js';
-import { ENABLE_CAMERA } from './constants.js'; // Import global camera flag
+import { ADMIN_EMAIL, ENABLE_CAMERA } from './constants.js';
 import { setAuthMessage, closeAllModals, renderUI } from './uiRender.js';
-import { takePhoto, stopCamera, startCamera } from './utils.js';
-import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { takePhoto, stopCamera, startCamera, delay } from './utils.js';
+import { getAuth, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { collection, doc, setDoc, Timestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 /*
@@ -14,12 +14,13 @@ import { collection, doc, setDoc, Timestamp } from "https://www.gstatic.com/fire
 
 /**
  * Handles the employee and admin login process.
- * Reads email/password from the DOM.
+ * @param {string} email - User's email address.
+ * @param {string} password - User's password.
  */
 export async function handleLogin() {
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
-
+    
     if (!state.auth) {
         setAuthMessage("Error: Application not fully initialized.", true);
         return;
@@ -46,7 +47,8 @@ export async function handleLogout() {
         stopCamera();
         await signOut(state.auth);
         closeAllModals();
-        navigateTo('login_view');
+        
+        // Navigation is handled by onAuthStateChanged in firebase.js
         setAuthMessage("You have been signed out.", false);
     } catch (error) {
         console.error("Logout failed:", error);
@@ -56,22 +58,20 @@ export async function handleLogout() {
 
 /**
  * Changes the current view in the application.
- * @param {string} targetView - The name of the view to switch to ('login_view', 'kiosk_view', 'admin_dashboard_view').
+ * NOTE: This function is simplified because the majority of navigation 
+ * happens inside firebase.js after auth checks.
+ * @param {string} targetView - The name of the view to switch to ('login', 'kiosk', 'admin_dashboard').
  */
 export function navigateTo(targetView) {
     try {
         updateState({ currentView: targetView });
         renderUI();
 
-        // Stop camera if leaving the kiosk view
-        if (targetView !== 'kiosk_view') {
+        // Handle Camera State
+        if (targetView === 'kiosk' && state.currentUser?.cameraEnabled && ENABLE_CAMERA) {
+            // Camera start is initiated during renderUI if ENABLE_CAMERA is true
+        } else {
             stopCamera();
-        }
-
-        // Auto-scroll logic for mobile (defensive)
-        const targetElement = document.getElementById(targetView);
-        if (targetElement) {
-            targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
     } catch (error) {
@@ -87,7 +87,7 @@ export function navigateTo(targetView) {
 */
 
 /**
- * Exports the main clock in/out action handler.
+ * Handles the main clock in/out action handler.
  */
 export async function handleClockAction() {
     if (!state.db || !state.currentUser) {
@@ -95,19 +95,33 @@ export async function handleClockAction() {
         return;
     }
 
-    const videoElement = document.getElementById('webcam-feed');
+    // Defensive check to prevent double-punching
+    if (state.isClocking) return; 
+    updateState({ isClocking: true });
 
+    const videoElement = document.getElementById('webcam-feed');
     const { status, uid, cameraEnabled } = state.currentUser;
     const type = status === 'in' ? 'out' : 'in';
     let photoData = null;
 
-    // Check if both global flag AND user setting are enabled
-    if (cameraEnabled && ENABLE_CAMERA) { 
+    if (cameraEnabled && ENABLE_CAMERA) {
         setAuthMessage(`Capturing photo for clock ${type}...`, false);
-        photoData = takePhoto(videoElement);
+        
+        // --- Defensive Camera Stream Check ---
+        if (!state.mediaStream && videoElement) {
+            startCamera(videoElement);
+            await delay(500); // Wait 0.5s for stream to stabilize
+        }
+        
+        if (state.mediaStream) {
+            photoData = takePhoto(videoElement);
+        }
 
         if (!photoData) {
+            // Revert status and inform user if photo fails
+            updateState({ isClocking: false });
             setAuthMessage("Photo capture failed. Please ensure camera access is enabled.", true);
+            console.error("CRITICAL CAMERA FAILURE: mediaStream is NULL despite browser permission being granted.");
             return;
         }
     }
@@ -117,12 +131,12 @@ export async function handleClockAction() {
 
         const logEntry = {
             employeeUid: uid,
+            employeeName: state.currentUser.name,
             type: type,
             timestamp: Timestamp.now(),
-            photo: photoData, // Null if camera disabled
+            photo: photoData, // Note: storing as 'photo' for consistency
         };
 
-        // Use a Firestore auto-generated ID for new logs
         await setDoc(doc(timecardsCollection), logEntry);
 
         // Update local status for immediate UI feedback
@@ -141,4 +155,6 @@ export async function handleClockAction() {
         console.error("Clock action failed:", error);
         setAuthMessage(`Clock action failed: ${error.message}`, true);
     }
+    
+    updateState({ isClocking: false });
 }
