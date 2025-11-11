@@ -175,6 +175,11 @@
                             <label for="filter-end-date" class="block text-sm font-medium text-gray-700">End Date</label>
                             <input type="date" id="filter-end-date" onchange="applyFilters()" class="mt-1 w-full px-3 py-2 border rounded-lg">
                         </div>
+                        <!-- Checkbox for break deductions for the payroll report logic -->
+                        <div class="flex items-center self-center h-full pt-4">
+                             <input type="checkbox" id="payroll-break-deductions" checked class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 mr-2">
+                             <label for="payroll-break-deductions" class="text-sm font-medium text-gray-700">Apply Breaks</label>
+                        </div>
                         <button onclick="generatePayrollReport()" class="btn-success px-4 py-2.5 rounded-lg whitespace-nowrap">
                             <i class="fas fa-file-csv mr-2"></i> Generate Payroll Report
                         </button>
@@ -187,7 +192,7 @@
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Timestamp</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                                    <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Photo</th>
+                                    <!-- REMOVED PHOTO HEADER -->
                                     <th class="relative px-6 py-3"><span class="sr-only">Actions</span></th>
                                 </tr>
                             </thead>

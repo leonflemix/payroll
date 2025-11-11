@@ -263,7 +263,7 @@ export function renderTimeLogList() {
 
     tableBody.innerHTML = filteredLogs.map(log => {
         const employee = state.allEmployees[log.employeeUid] || { name: 'Unknown', email: 'N/A' };
-        const hasPhoto = !!log.photo; // Photo is null since feature was removed
+        // const hasPhoto = !!log.photo; // REMOVED PHOTO LOGIC
 
         return `
             <tr class="border-b hover:bg-gray-50">
@@ -274,15 +274,7 @@ export function renderTimeLogList() {
                         ${log.type.toUpperCase()}
                     </span>
                 </td>
-                <td class="px-6 py-3 text-center">
-                    ${hasPhoto ? 
-                        `<span class="text-green-600">Yes</span>` :
-                        `<span class="inline-flex items-center text-red-500 text-sm">
-                            <i class="fas fa-camera-slash mr-1"></i>
-                            N/A
-                        </span>`
-                    }
-                </td>
+                <!-- REMOVED PHOTO TD COLUMN -->
                 <td class="px-6 py-3 whitespace-nowrap text-right text-sm font-medium">
                     <button onclick="toggleLogModal('${log.id}')" class="text-indigo-600 hover:text-indigo-900 mr-3">Edit</button>
                     <button onclick="handleLogDelete('${log.id}')" class="text-red-600 hover:text-red-900">Delete</button>
@@ -291,8 +283,9 @@ export function renderTimeLogList() {
         `;
     }).join('');
 
+    // Adjusted colspan from 5 to 4 due to removed Photo column
     if (filteredLogs.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-gray-500">No time logs found for the current filters.</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="4" class="py-4 text-center text-gray-500">No time logs found for the current filters.</td></tr>';
     }
 }
 
