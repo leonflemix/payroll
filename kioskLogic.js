@@ -3,7 +3,7 @@ import { state, updateState } from './state.js';
 import { ADMIN_EMAIL } from './constants.js';
 import { setAuthMessage, closeAllModals, renderUI } from './uiRender.js'; // navigateTo removed from import here
 import { getAuth, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { collection, doc, setDoc, Timestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { collection, doc, setDoc, Timestamp, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 /*
 |--------------------------------------------------------------------------
@@ -92,13 +92,13 @@ export async function handleClockAction() {
     updateState({ isClocking: true }); 
 
     // --- OPTIMISTIC UI UPDATE ---
-    // 1. Immediately update UI to the new status. This makes the punch feel instant.
+    // 1. Immediately update UI to the new status in local state.
     updateState({
         currentUser: {
             ...state.currentUser,
             status: newType
         },
-        // **NEW: Optimistically update the allEmployees cache for the Admin Dashboard**
+        // Optimistically update the allEmployees cache for Admin Dashboard
         allEmployees: {
             ...state.allEmployees,
             [uid]: {
@@ -107,12 +107,13 @@ export async function handleClockAction() {
             }
         }
     });
-    renderUI(); // Re-render the button, status badge, and Admin Employee List immediately
+    renderUI(); // Re-render the UI immediately
     const successMessage = `Clock ${newType.toUpperCase()} successful at ${new Date().toLocaleTimeString()}.`;
     setAuthMessage(`Punching ${newType.toUpperCase()}... (Processing)`, false);
 
     try {
         const timecardsCollection = collection(state.db, state.timecards_logs_path);
+        const employeeRef = doc(state.db, state.employee_path, uid); // Reference to employee document
 
         const logEntry = {
             employeeUid: uid,
@@ -122,16 +123,16 @@ export async function handleClockAction() {
             photo: null, // Camera removed, always set to null
         };
 
-        // 2. Wait for the database write to complete
+        // 2a. Write the new time log document
         await setDoc(doc(timecardsCollection), logEntry);
+        
+        // 2b. **CRITICAL FIX**: Update the employee's status in their Firestore document
+        await updateDoc(employeeRef, { status: newType });
 
         // 3. Complete processing state (status already updated optimistically)
         updateState({
             isClocking: false // End processing state
         });
-            
-        // The Admin Listener on the Employee collection will eventually confirm this
-        // by updating the employee document status. This optimistic update handles the display delay.
             
         // Final success message (the UI status is already correct)
         setAuthMessage(successMessage, false);
@@ -158,6 +159,6 @@ export async function handleClockAction() {
         });
         renderUI(); // Revert the UI status badge
 
-        setAuthMessage(`Clock action failed. Please try again.`, true);
+        setAuthMessage(`Clock action failed: ${error.message}. Status reverted.`, true);
     }
 }
