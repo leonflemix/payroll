@@ -85,6 +85,9 @@ export async function handleClockAction() {
     const { status, uid, name } = state.currentUser;
     const newType = status === 'in' ? 'out' : 'in';
     
+    // Save original state for error reversion
+    const originalStatus = status;
+
     // Start processing state to prevent double-punching
     updateState({ isClocking: true }); 
 
@@ -94,9 +97,17 @@ export async function handleClockAction() {
         currentUser: {
             ...state.currentUser,
             status: newType
+        },
+        // **NEW: Optimistically update the allEmployees cache for the Admin Dashboard**
+        allEmployees: {
+            ...state.allEmployees,
+            [uid]: {
+                ...state.allEmployees[uid],
+                status: newType
+            }
         }
     });
-    renderUI(); // Re-render the button and status badge immediately
+    renderUI(); // Re-render the button, status badge, and Admin Employee List immediately
     const successMessage = `Clock ${newType.toUpperCase()} successful at ${new Date().toLocaleTimeString()}.`;
     setAuthMessage(`Punching ${newType.toUpperCase()}... (Processing)`, false);
 
@@ -119,6 +130,9 @@ export async function handleClockAction() {
             isClocking: false // End processing state
         });
             
+        // The Admin Listener on the Employee collection will eventually confirm this
+        // by updating the employee document status. This optimistic update handles the display delay.
+            
         // Final success message (the UI status is already correct)
         setAuthMessage(successMessage, false);
 
@@ -131,7 +145,14 @@ export async function handleClockAction() {
         updateState({
             currentUser: {
                 ...state.currentUser,
-                status: status // Original status
+                status: originalStatus // Original status
+            },
+            allEmployees: {
+                 ...state.allEmployees,
+                 [uid]: {
+                     ...state.allEmployees[uid],
+                     status: originalStatus
+                 }
             },
             isClocking: false 
         });
