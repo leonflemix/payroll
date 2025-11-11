@@ -313,16 +313,45 @@
 
         // --- 1. CONSTANTS (from constants.js) ---
 
-        // Check for and use Canvas global variables
-        const FIREBASE_CONFIG = typeof __firebase_config !== 'undefined' 
-            ? JSON.parse(__firebase_config) 
-            : { /* Fallback for local testing, though generally unused in Canvas */ };
+        // FALLBACK CONFIGURATION (from original constants.js)
+        const HARDCODED_FIREBASE_CONFIG = {
+            apiKey: "AIzaSyDkNNCV_5D9TpW3vhY2oTbnpGVCtlZC5n8",
+            authDomain: "payroll-52d0b.firebaseapp.com",
+            projectId: "payroll-52d0b",
+            storageBucket: "payroll-52d0b.firebasestorage.app",
+            messagingSenderId: "483678226011",
+            appId: "1:483678226011:web:9ddbc595e4ec9e1325617e",
+            measurementId: "G-SB0PVF2ZYV"
+        };
 
-        // Retrieve the App ID from the global variable or use a fallback
-        const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        let FIREBASE_CONFIG = HARDCODED_FIREBASE_CONFIG;
+        let APP_ID = FIREBASE_CONFIG.projectId || 'default-app-id';
 
-        // Paths are constructed based on the required structure for shared/public data:
-        // /artifacts/{appId}/public/data/{collectionName}
+        // 1. Try to read from Canvas environment (highest priority)
+        if (typeof __firebase_config !== 'undefined') {
+            try {
+                FIREBASE_CONFIG = JSON.parse(__firebase_config);
+                APP_ID = typeof __app_id !== 'undefined' ? __app_id : FIREBASE_CONFIG.projectId;
+                console.log("Using Canvas Global Configuration.");
+            } catch (e) {
+                console.error("Error parsing __firebase_config:", e);
+            }
+        }
+        
+        // 2. Try to read from Vercel/Client-side injected Environment Variable
+        // This assumes the Vercel build process injects the JSON string into the global window object.
+        else if (typeof window.FIREBASE_CONFIG_JSON !== 'undefined' && typeof JSON.parse(window.FIREBASE_CONFIG_JSON).projectId !== 'undefined') {
+            try {
+                FIREBASE_CONFIG = JSON.parse(window.FIREBASE_CONFIG_JSON);
+                APP_ID = FIREBASE_CONFIG.projectId;
+                console.log("Using Vercel Injected Configuration.");
+            } catch (e) {
+                console.error("Error parsing window.FIREBASE_CONFIG_JSON:", e);
+            }
+        }
+        
+        // Final fallback uses HARDCODED_FIREBASE_CONFIG.
+        
         const BASE_PATH = `artifacts/${APP_ID}/public/data`;
         const ADMIN_EMAIL = 'admin@kiosk.com'; // Email used for the Admin account
 
