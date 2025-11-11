@@ -4,8 +4,8 @@ import { FIREBASE_CONFIG, BASE_PATH } from './constants.js';
 import { navigateTo } from './kioskLogic.js';
 import { renderUI, setAuthMessage } from './uiRender.js';
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, doc, getDoc, collection, query, where, onSnapshot, Timestamp, updateDoc, setDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { getAuth, onAuthStateChanged, signOut, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { getFirestore, doc, getDoc, collection, query, where, onSnapshot, Timestamp, updateDoc, setDoc, getDocs, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 /*
 |--------------------------------------------------------------------------
@@ -19,11 +19,17 @@ import { getFirestore, doc, getDoc, collection, query, where, onSnapshot, Timest
 export async function initFirebase() {
     console.log("Initializing Firebase...");
     try {
+        // Set Firestore log level for debugging
+        setLogLevel('debug');
+        
         const app = initializeApp(FIREBASE_CONFIG);
-        setDb(getFirestore(app));
-        setAuth(getAuth(app));
+        const dbInstance = getFirestore(app);
+        const authInstance = getAuth(app);
 
-        // Define Firestore Collection Paths based on Project ID
+        setDb(dbInstance);
+        setAuth(authInstance);
+
+        // Define Firestore Collection Paths based on the environment BASE_PATH
         const pathRoot = BASE_PATH;
         updateState({
             employee_path: `${pathRoot}/employees`,
@@ -31,12 +37,23 @@ export async function initFirebase() {
             audit_logs_path: `${pathRoot}/audit_logs`
         });
 
-        // Start listening for Authentication changes
-        onAuthStateChanged(state.auth, (user) => {
+        // --- MANDATORY CANVAS AUTHENTICATION ---
+        // Sign in using the custom token provided by the environment, or anonymously as a fallback.
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+            await signInWithCustomToken(authInstance, __initial_auth_token);
+            console.log("Signed in with Custom Token.");
+        } else {
+            await signInAnonymously(authInstance);
+            console.log("Signed in Anonymously.");
+        }
+        // -------------------------------------
+
+        // Start listening for Authentication changes (this is triggered immediately after sign-in above)
+        onAuthStateChanged(authInstance, (user) => {
             updateState({ isAuthReady: true });
-            if (user) {
-                // User is signed in
-                console.log("Login successful...");
+            if (user && user.uid) {
+                // User is signed in (could be custom token user or anonymous)
+                console.log(`Auth state changed. User UID: ${user.uid}`);
                 fetchAndSetCurrentUser(user);
             } else {
                 // User is signed out (or initial state)
@@ -67,6 +84,7 @@ export async function fetchAndSetCurrentUser(user) {
     if (!state.db) return;
 
     try {
+        // Check if the user document exists in Firestore.
         const docRef = doc(state.db, state.employee_path, user.uid);
         const docSnap = await getDoc(docRef);
 
@@ -84,7 +102,13 @@ export async function fetchAndSetCurrentUser(user) {
             // Navigate based on role and render the UI immediately
             navigateTo(userData.isAdmin ? 'admin_dashboard_view' : 'kiosk_view');
 
+        } else if (user.isAnonymous) {
+            // Anonymous user signed in, but no profile exists. This is expected.
+            // Stay on login view until they successfully log in via UI (handleLogin)
+            updateState({ currentUser: null });
+            navigateTo('login_view');
         } else {
+            // Logged in with custom token/email but no profile doc
             console.error(`CRITICAL ERROR: User profile document missing for Auth UID: ${user.uid}. Logging out.`);
             setAuthMessage("Profile not found. Contact administrator.", true);
             await signOut(state.auth);

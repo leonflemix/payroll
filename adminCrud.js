@@ -163,11 +163,13 @@ export async function handleEmployeeSettings(event) {
  * @param {string} uid - The UID of the employee to delete.
  */
 export async function deleteEmployee(uid) {
-    // Note: Cannot use window.confirm in an iframe, this is retained for simulated interaction
-    if (!confirm(`Are you sure you want to delete employee ${state.allEmployees[uid]?.name}? This will NOT delete the Firebase Authentication user.`)) return;
-
+    // IMPORTANT: window.confirm() is forbidden. Proceeding with deletion and providing feedback.
+    
     const employee = state.allEmployees[uid];
-    if (!employee) return;
+    if (!employee) {
+        setAuthMessage("Error: Employee not found.", true);
+        return;
+    }
 
     try {
         // 1. Delete Firestore Document
@@ -175,7 +177,7 @@ export async function deleteEmployee(uid) {
         await deleteDoc(employeeRef);
 
         await writeAuditLog('DELETE_PROFILE', `Deleted employee profile for ${employee.name}`, uid, JSON.stringify(employee));
-        setAuthMessage(`Employee ${employee.name} profile deleted.`, false);
+        setAuthMessage(`Employee ${employee.name} profile deleted. NOTE: Firebase Auth user is NOT deleted.`, false);
     } catch (error) {
         console.error("Error deleting employee:", error);
         setAuthMessage(`Failed to delete employee: ${error.message}`, true);
@@ -205,11 +207,11 @@ export function toggleLogModal(logId) {
 
     // Populate Employee Select
     const employeeSelect = document.getElementById('log-employee-select');
-    if (employeeSelect.children.length === 0 || employeeSelect.children[0].value === "") {
-        employeeSelect.innerHTML = Object.values(state.allEmployees).map(emp =>
-            `<option value="${emp.uid}">${emp.name}</option>`
-        ).join('');
-    }
+    // Clear the select before repopulating
+    employeeSelect.innerHTML = Object.values(state.allEmployees).map(emp =>
+        `<option value="${emp.uid}">${emp.name}</option>`
+    ).join('');
+
 
     if (logId) {
         // --- Edit Existing Log ---
@@ -224,7 +226,12 @@ export function toggleLogModal(logId) {
         // Format timestamp for datetime-local input
         const date = log.timestamp.toDate();
         const datePart = date.toISOString().substring(0, 10);
-        const timePart = date.toTimeString().substring(0, 5);
+        // Correctly format time part including seconds (required by step="1" in HTML)
+        const hours = date.getHours().toString().padStart(2, '0');
+        const minutes = date.getMinutes().toString().padStart(2, '0');
+        const seconds = date.getSeconds().toString().padStart(2, '0');
+        const timePart = `${hours}:${minutes}:${seconds}`;
+
         document.getElementById('log-datetime').value = `${datePart}T${timePart}`;
         document.getElementById('log-type').value = log.type;
 
@@ -232,7 +239,11 @@ export function toggleLogModal(logId) {
         // Default values for new log
         const now = new Date();
         const datePart = now.toISOString().substring(0, 10);
-        const timePart = now.toTimeString().substring(0, 5);
+        const hours = now.getHours().toString().padStart(2, '0');
+        const minutes = now.getMinutes().toString().padStart(2, '0');
+        const seconds = now.getSeconds().toString().padStart(2, '0');
+        const timePart = `${hours}:${minutes}:${seconds}`;
+        
         document.getElementById('log-datetime').value = `${datePart}T${timePart}`;
         document.getElementById('log-type').value = 'in';
     }
@@ -284,15 +295,21 @@ export async function handleLogSave(event) {
             // --- Add New Log ---
             const logsCollection = collection(state.db, state.timecards_logs_path);
             
+            const employee = state.allEmployees[employeeUid];
+            if (!employee) throw new Error("Employee data not found.");
+
+            // Use doc(collection) to get a new document reference with an auto-generated ID
+            const logRef = doc(logsCollection); 
+            
             const newLog = {
                 employeeUid: employeeUid,
-                employeeName: state.allEmployees[employeeUid].name,
+                employeeName: employee.name, 
                 type: type,
                 timestamp: newTimestamp,
                 photo: null 
             };
 
-            await setDoc(doc(logsCollection), newLog);
+            await setDoc(logRef, newLog);
 
             await writeAuditLog('ADD_LOG', `New log added by Admin: ${type} at ${formatTimestamp(newTimestamp)}`, employeeUid);
             
@@ -310,10 +327,12 @@ export async function handleLogSave(event) {
  * @param {string} logId - The ID of the log entry to delete.
  */
 export async function handleLogDelete(logId) {
-    if (!confirm("Are you sure you want to delete this time log entry?")) return;
-
+    // IMPORTANT: window.confirm() is forbidden. Proceeding with deletion and providing feedback.
     const log = state.allLogs.find(l => l.id === logId);
-    if (!log) return;
+    if (!log) {
+        setAuthMessage("Error: Log record not found.", true);
+        return;
+    }
 
     try {
         const logRef = doc(state.db, state.timecards_logs_path, logId);
@@ -373,7 +392,8 @@ export async function generatePayrollReport() {
     }
 
     if (endDate) {
-        const endTimestamp = endDate.getTime() + 86400000;
+        // End date should include the entire day, up to the last millisecond
+        const endTimestamp = endDate.getTime() + 86400000; // Add 24 hours
         filteredLogs = filteredLogs.filter(log => log.timestamp.toMillis() < endTimestamp);
     }
 
@@ -421,12 +441,14 @@ export async function generatePayrollReport() {
 
     // --- 2. Calculate Overtime (Daily and Weekly) ---
     const finalReport = [];
-    const weeklyHours = {}; // Tracks hours for weekly OT calculation
+    // Reset weekly hours tracking on each report generation
+    const weeklyHours = {}; 
 
     for (const shift of shifts) {
         let grossHours = shift.shiftHours;
         
         const breakTriggerHours = 6;
+        // Check if break deduction applies (non-zero setting AND shift duration > trigger)
         const breakDeductionHours = (shift.breakDeductionMins > 0 && grossHours > breakTriggerHours) ? (shift.breakDeductionMins / 60) : 0;
         let netHours = grossHours - breakDeductionHours;
 
@@ -438,37 +460,43 @@ export async function generatePayrollReport() {
         const dailyLimit = shift.maxDailyHours;
         if (netHours > dailyLimit) {
             dailyOvertime = netHours - dailyLimit;
-            netHours = dailyLimit; 
         }
+
+        let hoursForWeeklySplit = netHours - dailyOvertime; // This is the regular portion of the day (max dailyLimit)
 
         // Weekly Overtime 
         const shiftDate = shift.in;
+        // Calculate the starting day of the week (Monday)
+        const dayOfWeek = shiftDate.getDay(); // 0 is Sunday, 1 is Monday
+        const daysToSubtract = (dayOfWeek === 0) ? 6 : dayOfWeek - 1; // If Sunday, go back 6 days. Else, go back day-1 days.
+        
         const startOfWeek = new Date(shiftDate);
-        startOfWeek.setDate(shiftDate.getDate() - (shiftDate.getDay() === 0 ? 6 : shiftDate.getDay() - 1)); // Adjust to Monday
+        startOfWeek.setDate(shiftDate.getDate() - daysToSubtract); 
         startOfWeek.setHours(0, 0, 0, 0);
         const weekKey = `${shift.employeeUid}-${startOfWeek.getTime()}`; 
 
         if (!weeklyHours[weekKey]) {
-            weeklyHours[weekKey] = { totalHours: 0, regularCapacity: 40 };
+            // totalHours tracks cumulative NET hours (post-break, pre-OT split)
+            weeklyHours[weekKey] = { totalHours: 0, regularCapacity: 40 }; 
         }
-
-        const currentWeeklyTotal = weeklyHours[weekKey].totalHours;
+        
+        // This is the amount of hours *not* yet counted as weekly OT
+        const currentWeeklyTotal = weeklyHours[weekKey].totalHours; 
         const remainingRegularCapacity = weeklyHours[weekKey].regularCapacity - currentWeeklyTotal;
         
         if (remainingRegularCapacity > 0) {
-            const hoursForRegular = Math.min(netHours, remainingRegularCapacity);
+            const hoursForRegular = Math.min(hoursForWeeklySplit, remainingRegularCapacity);
             regularHours = hoursForRegular;
-
-            const hoursRemainingAfterRegular = netHours - hoursForRegular;
-            if (hoursRemainingAfterRegular > 0) {
-                weeklyOvertime = hoursRemainingAfterRegular;
-            }
+            weeklyOvertime = hoursForWeeklySplit - hoursForRegular;
         } else {
-            weeklyOvertime = netHours;
+            // All hours are weekly OT
+            weeklyOvertime = hoursForWeeklySplit;
         }
 
-        weeklyHours[weekKey].totalHours += regularHours + weeklyOvertime;
-        
+        // Update the running weekly total
+        weeklyHours[weekKey].totalHours += hoursForWeeklySplit;
+
+
         finalReport.push({
             name: shift.name,
             date: shift.date,
@@ -495,7 +523,8 @@ export async function generatePayrollReport() {
         csv += "Employee,Date/Time,Type\n";
         unpairedPunches.forEach(log => {
             const employee = state.allEmployees[log.employeeUid] || { name: 'Unknown' };
-            csv += `${employee.name},${formatTimestamp(log.timestamp)},${log.type.toUpperCase()}\\n`;
+            // FIX: Use single newline character
+            csv += `${employee.name},${formatTimestamp(log.timestamp)},${log.type.toUpperCase()}\n`;
         });
     }
 
