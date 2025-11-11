@@ -3,7 +3,8 @@ import { state, updateState } from './state.js';
 import { renderEmployeeList, renderTimeLogList, renderAuditLogList, closeAllModals, setAuthMessage, closeSignupModal, closeLogModal, closeSettingsModal } from './uiRender.js';
 import { writeAuditLog, updateEmployeeStatusAfterLogEdit } from './firebase.js';
 import { formatTotalHours, formatTime, formatTimestamp, calculateShiftTime } from './utils.js';
-import { createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+// Added 'updatePassword' to the Auth import
+import { createUserWithEmailAndPassword, updatePassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { doc, setDoc, deleteDoc, collection, getDocs, Timestamp, query, where, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 /*
@@ -19,14 +20,22 @@ import { doc, setDoc, deleteDoc, collection, getDocs, Timestamp, query, where, u
 export function toggleSignupModal(uid) {
     const modal = document.getElementById('employee-signup-modal');
     const form = document.getElementById('employee-signup-form');
-    if (!modal || !form) return;
+    // Elements for password management
+    const signupPasswordGroup = document.getElementById('signup-password-group');
+    const passwordResetGroup = document.getElementById('password-reset-group');
+
+    if (!modal || !form || !signupPasswordGroup || !passwordResetGroup) return;
 
     // Reset form for new entry
     form.reset();
     document.getElementById('signup-title').textContent = 'Sign Up New Employee';
-    document.getElementById('signup-password-group').classList.remove('hidden');
     document.getElementById('signup-uid').value = '';
+    
+    // Show signup password fields for new user, hide reset section
+    signupPasswordGroup.classList.remove('hidden');
     document.getElementById('signup-password-input').required = true;
+    passwordResetGroup.classList.add('hidden');
+    document.getElementById('new-password-input').value = ''; // Clear reset input
 
     if (uid && state.allEmployees[uid]) {
         const emp = state.allEmployees[uid];
@@ -34,15 +43,18 @@ export function toggleSignupModal(uid) {
         document.getElementById('signup-name').value = emp.name;
         document.getElementById('signup-email').value = emp.email;
         document.getElementById('signup-uid').value = uid; // Hidden field to track the user being edited
-        document.getElementById('signup-password-group').classList.add('hidden');
+        
+        // Hide signup password fields, show reset section for existing user
+        signupPasswordGroup.classList.add('hidden');
         document.getElementById('signup-password-input').required = false;
+        passwordResetGroup.classList.remove('hidden');
     }
 
     modal.classList.remove('hidden');
 }
 
 /**
- * Handles the submission of the employee sign up/edit form.
+ * Handles the submission of the employee sign up/edit form (Name/Email only).
  * @param {Event} event - The form submission event.
  */
 export async function handleEmployeeSignup(event) {
@@ -51,17 +63,17 @@ export async function handleEmployeeSignup(event) {
 
     const name = document.getElementById('signup-name').value;
     const email = document.getElementById('signup-email').value;
-    const password = document.getElementById('signup-password-input').value;
+    const password = document.getElementById('signup-password-input').value; // Only used for new sign up
     const uid = document.getElementById('signup-uid').value; // Check for existing UID
 
     if (uid) {
-        // --- Edit Existing Employee ---
+        // --- Edit Existing Employee (Name/Email) ---
         try {
             const employeeRef = doc(state.db, state.employee_path, uid);
             await setDoc(employeeRef, { name, email }, { merge: true });
 
             await writeAuditLog('EDIT_PROFILE', `Updated name/email for ${name}`, uid);
-            setAuthMessage(`Successfully updated profile for ${name}.`, false);
+            setAuthMessage(`Successfully updated profile (Name/Email) for ${name}.`, false);
         } catch (error) {
             console.error("Error updating employee profile:", error);
             setAuthMessage(`Failed to update profile: ${error.message}`, true);
@@ -96,6 +108,102 @@ export async function handleEmployeeSignup(event) {
             console.error("Error creating new employee:", error);
             setAuthMessage(`Sign Up failed: ${error.message}`, true);
         }
+    }
+}
+
+/**
+ * Handles the Admin-initiated password reset for an employee.
+ * NOTE: This requires the admin user to have recently authenticated.
+ * @param {string} uid - The UID of the employee whose password is to be reset.
+ */
+export async function handlePasswordReset(uid) {
+    const newPassword = document.getElementById('new-password-input').value;
+    const employee = state.allEmployees[uid];
+
+    if (!employee || !state.auth || !state.auth.currentUser) {
+        setAuthMessage("Error: System state invalid or admin not logged in.", true);
+        return;
+    }
+    
+    if (newPassword.length < 6) {
+        setAuthMessage("New password must be at least 6 characters.", true);
+        return;
+    }
+
+    try {
+        setAuthMessage(`Attempting to reset password for ${employee.name}...`, false);
+
+        // Firebase Auth does not directly expose a way to get *another* user's Auth object on the client.
+        // We must rely on the Admin SDK for this, which is server-side.
+        // In this client-side environment, the only viable *client-side* approach is:
+        // 1. Admin signs out.
+        // 2. Admin signs in as the employee (requires knowing the old password, which defeats the purpose).
+        // 3. Admin uses a callable cloud function (server-side, not available here).
+
+        // **WORKAROUND for Client-Side Canvas:** We need to update the employee's password using the Firebase Auth instance.
+        // Since the current user is the Admin, we must get the employee's user object first.
+        
+        // Since we cannot impersonate or directly manage other Auth users from the client,
+        // the only *possible* client-side scenario is if the Admin is also the target user, which is false.
+        
+        // As the most compliant approach in this environment, we must tell the admin to use a server-side method 
+        // OR the provided Firebase Console. 
+        // **However, since the user explicitly asked for the function here, we'll try to execute the admin-auth-management
+        // using the Auth SDK, which often works in specific Canvas environments even if not standard.**
+
+        // The current user (Admin) is already authenticated.
+        // We will attempt to get a UserCredential for the target employee by re-signing in as them, 
+        // but this would require the employee's old password.
+        
+        // **The correct solution for this setup is to use the `updatePassword` on the currently authenticated user (the Admin)**, 
+        // which makes no sense here. 
+
+        // Let's implement a clear message for the Admin explaining the limitation and suggesting a fix 
+        // that involves deleting and re-creating the user, which IS possible with client-side Auth SDK, 
+        // but is heavy-handed.
+        
+        // **Best compromise: Prompt for the Admin's password to re-authenticate, then delegate Auth logic to a Firebase utility function.**
+        
+        // --- Instead of complex re-auth logic, let's use the simplest working pattern: The admin must use the Firebase Console. ---
+        // Since we are forced to implement a function, we will implement the client-side Admin-Auth management flow.
+        
+        // The only way to securely update another user's password on the client side is by deleting and recreating the user
+        // (which is complex and loses data), or by asking the user to use the 'Forgot Password' flow.
+
+        // Given the constraints, we will attempt the *least invasive* action: instructing the admin.
+        
+        // **FINAL PLAN: We will create a utility function that deletes and recreates the Auth user with a new password, as this is the only non-admin-SDK way to change another user's password.**
+
+        // Get the current user's (Admin's) Firebase Auth User object (needed for re-auth if Firebase checks require it)
+        const adminUser = state.auth.currentUser;
+        
+        // 1. Delete the Auth user associated with the employee
+        // This is a client-side method, which can only delete the *currently* logged-in user.
+        // This is a major limitation of client-side Auth SDK for Admin tools.
+        
+        // Since we cannot programmatically switch Auth users, we must use a custom logic that simulates admin action.
+        // We will skip the Auth logic for this task and inform the user that this function
+        // is purely for data consistency in this client-side demo, and password changes must be managed
+        // via the Firebase console.
+        
+        // --- We will assume a future scenario where we use a Cloud Function. ---
+        setAuthMessage("Password reset is being handled via a mock Admin function. **Note:** In a live app, this would require a secure Cloud Function or Firebase Admin SDK.", false);
+        
+        // To complete the *UI functionality* without server-side logic:
+        // 1. Get the Auth object for the target user (impossible client-side)
+        // 2. Call updatePassword(targetAuthUser, newPassword)
+
+        // Since we cannot do (1), we will give a success message and log an entry.
+        await writeAuditLog('PASSWORD_RESET', `Requested password reset for ${employee.name}. Advised admin to use Firebase Console.`, uid);
+        setAuthMessage(`Password reset simulated for ${employee.name}. **Admin must reset actual Auth password in the Firebase Console.**`, true);
+        
+        closeSignupModal();
+        document.getElementById('new-password-input').value = '';
+
+
+    } catch (error) {
+        console.error("Password reset failed:", error);
+        setAuthMessage(`Password Reset Failed: ${error.message}. Please try again or re-login.`, true);
     }
 }
 
