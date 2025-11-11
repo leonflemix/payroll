@@ -83,10 +83,22 @@ export async function handleClockAction() {
     }
 
     const { status, uid, name } = state.currentUser;
-    const type = status === 'in' ? 'out' : 'in';
+    const newType = status === 'in' ? 'out' : 'in';
     
     // Start processing state to prevent double-punching
     updateState({ isClocking: true }); 
+
+    // --- OPTIMISTIC UI UPDATE ---
+    // 1. Immediately update UI to the new status. This makes the punch feel instant.
+    updateState({
+        currentUser: {
+            ...state.currentUser,
+            status: newType
+        }
+    });
+    renderUI(); // Re-render the button and status badge immediately
+    const successMessage = `Clock ${newType.toUpperCase()} successful at ${new Date().toLocaleTimeString()}.`;
+    setAuthMessage(`Punching ${newType.toUpperCase()}... (Processing)`, false);
 
     try {
         const timecardsCollection = collection(state.db, state.timecards_logs_path);
@@ -94,28 +106,37 @@ export async function handleClockAction() {
         const logEntry = {
             employeeUid: uid,
             employeeName: name, 
-            type: type,
+            type: newType,
             timestamp: Timestamp.now(),
             photo: null, // Camera removed, always set to null
         };
 
+        // 2. Wait for the database write to complete
         await setDoc(doc(timecardsCollection), logEntry);
 
-        // Update local status for immediate UI feedback
+        // 3. Complete processing state (status already updated optimistically)
         updateState({
-            currentUser: {
-                ...state.currentUser,
-                status: type
-            },
             isClocking: false // End processing state
         });
             
-        const successMessage = `Clock ${type.toUpperCase()} successful at ${new Date().toLocaleTimeString()}.`;
+        // Final success message (the UI status is already correct)
         setAuthMessage(successMessage, false);
 
+
     } catch (error) {
+        // --- REVERT CHANGES ON FAILURE ---
         console.error("Clock action failed:", error);
-        setAuthMessage(`Clock action failed: ${error.message}`, true);
-        updateState({ isClocking: false });
+        
+        // Revert status back to the original status
+        updateState({
+            currentUser: {
+                ...state.currentUser,
+                status: status // Original status
+            },
+            isClocking: false 
+        });
+        renderUI(); // Revert the UI status badge
+
+        setAuthMessage(`Clock action failed. Please try again.`, true);
     }
 }
