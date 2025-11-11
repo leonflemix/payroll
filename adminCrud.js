@@ -521,16 +521,3 @@ export async function generatePayrollReport() {
 export function handleAdminLogin(credentials) {
     // ...existing implementation...
 }
-
-export {
-  handleEmployeeSignup,
-  deleteEmployee,
-  toggleLogModal,
-  handleLogSave,
-  handleLogDelete,
-  generatePayrollReport,
-  toggleSettingsModal,
-  handleEmployeeSettings,
-  toggleSignupModal,
-  handleAdminLogin
-};
