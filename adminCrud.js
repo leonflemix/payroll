@@ -513,3 +513,24 @@ export async function generatePayrollReport() {
     }
     setAuthMessage("Payroll report generated successfully.", false);
 }
+
+/**
+ * Handles admin login functionality.
+ * @param {Object} credentials - The login credentials.
+ */
+export function handleAdminLogin(credentials) {
+    // ...existing implementation...
+}
+
+export {
+  handleEmployeeSignup,
+  deleteEmployee,
+  toggleLogModal,
+  handleLogSave,
+  handleLogDelete,
+  generatePayrollReport,
+  toggleSettingsModal,
+  handleEmployeeSettings,
+  toggleSignupModal,
+  handleAdminLogin
+};

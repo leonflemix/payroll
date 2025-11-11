@@ -114,3 +114,13 @@ export function formatTotalHours(hours) {
 export function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
+
+/**
+ * Converts PCM audio buffer to WAV format.
+ * @param {Float32Array} pcmBuffer - The PCM audio buffer.
+ * @param {number} sampleRate - The sample rate of the audio.
+ * @returns {ArrayBuffer} - The WAV formatted audio data.
+ */
+export function pcmToWav(pcmBuffer, sampleRate) {
+  // implementation...
+}
