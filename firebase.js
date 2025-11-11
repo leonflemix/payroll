@@ -20,7 +20,7 @@ export async function initFirebase() {
     console.log("Initializing Firebase...");
     try {
         // Set Firestore log level for debugging
-        setLogLevel('debug');
+        // setLogLevel('debug'); // <-- COMMENTED OUT to reduce console spam
         
         const app = initializeApp(FIREBASE_CONFIG);
         const dbInstance = getFirestore(app);
@@ -38,14 +38,15 @@ export async function initFirebase() {
         });
 
         // --- MANDATORY CANVAS AUTHENTICATION ---
-        // Sign in using the custom token provided by the environment.
+        // Sign in using the custom token provided by the environment, or anonymously as a fallback.
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
             await signInWithCustomToken(authInstance, __initial_auth_token);
             console.log("Signed in with Custom Token.");
         } else {
-            // If token is missing, the app cannot proceed as intended. 
-            // We just log an error and rely on the state listener to handle the view.
+            // Fallback to anonymous sign-in if token is missing (which happened during development setup)
             console.error("CRITICAL: Initial auth token is missing.");
+            await signInAnonymously(authInstance);
+            console.log("Signed in Anonymously.");
         }
         // -------------------------------------
 
@@ -110,7 +111,7 @@ export async function fetchAndSetCurrentUser(user) {
             navigateTo('login_view');
         } else {
             // Logged in with custom token/email but no profile doc
-            console.error(`CRITICAL ERROR: User profile document missing for Auth UID: ${user.uid}. Logging out. Please ensure user profiles are created after signup.`);
+            console.error(`CRITICAL ERROR: User profile document missing for Auth UID: ${user.uid}. Logging out.`);
             setAuthMessage("Profile not found. Contact administrator.", true);
             await signOut(state.auth);
         }
