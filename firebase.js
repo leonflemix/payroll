@@ -20,7 +20,7 @@ export async function initFirebase() {
     console.log("Initializing Firebase...");
     try {
         // Set Firestore log level for debugging
-        setLogLevel('debug');
+        // setLogLevel('debug'); // <-- Removed to reduce console spam
         
         const app = initializeApp(FIREBASE_CONFIG);
         const dbInstance = getFirestore(app);
@@ -43,8 +43,8 @@ export async function initFirebase() {
             await signInWithCustomToken(authInstance, __initial_auth_token);
             console.log("Signed in with Custom Token.");
         } else {
-            // If token is missing, the app cannot proceed as intended. 
-            // We just log an error and rely on the state listener to handle the view.
+            // Reverted to the previous flow that worked, relying on onAuthStateChanged 
+            // to handle the non-authenticated state and land on login_view.
             console.error("CRITICAL: Initial auth token is missing.");
         }
         // -------------------------------------
@@ -110,7 +110,7 @@ export async function fetchAndSetCurrentUser(user) {
             navigateTo('login_view');
         } else {
             // Logged in with custom token/email but no profile doc
-            console.error(`CRITICAL ERROR: User profile document missing for Auth UID: ${user.uid}. Logging out. Please ensure user profiles are created after signup.`);
+            console.error(`CRITICAL ERROR: User profile document missing for Auth UID: ${user.uid}. Logging out.`);
             setAuthMessage("Profile not found. Contact administrator.", true);
             await signOut(state.auth);
         }
