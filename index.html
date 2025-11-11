@@ -27,35 +27,218 @@
         .log-table tr:nth-child(even) { background-color: #f9fafb; }
         .log-table tr:hover { background-color: #f3f4f6; }
         .modal-overlay { background-color: rgba(0, 0, 0, 0.5); z-index: 50; }
+        /* Style for active tab to maintain consistency with JS */
+        .tab-button.active {
+            color: #4f46e5; /* indigo-600 */
+            border-color: #4f46e5; /* indigo-500 */
+        }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
 
     <!-- Auth Message Box (for transient messages) -->
-    <!-- NOTE: The new script.js uses '#message-box' not '#auth-message-box' -->
+    <!-- ID changed to #message-box as used consistently in the JS -->
     <div id="message-box" class="fixed top-4 right-4 p-4 rounded-lg shadow-lg hidden transition duration-300"></div>
 
     <!-- Main Content Area -->
     <div id="app-container" class="w-full max-w-4xl">
-        <!-- Content dynamically rendered by script.js -->
+        
+        <!-- ================================== -->
+        <!-- 1. LOGIN VIEW -->
+        <!-- ================================== -->
+        <div id="login_view" class="flex flex-col items-center justify-center p-6 min-h-[30rem] hidden">
+            <div class="card p-8 w-full max-w-md">
+                <h1 class="text-3xl font-extrabold text-gray-900 mb-6 text-center">Timecard Login</h1>
+                <p class="text-sm text-gray-500 mb-6 text-center">Sign in as employee or use `admin@kiosk.com` to access the dashboard.</p>
+                
+                <form id="login-form" onsubmit="event.preventDefault(); handleLogin();" class="space-y-6">
+                    <div>
+                        <label for="login-email" class="block text-sm font-medium text-gray-700">Email Address</label>
+                        <input type="email" id="login-email" required placeholder="user@domain.com" class="w-full mt-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label for="login-password" class="block text-sm font-medium text-gray-700">Password</label>
+                        <input type="password" id="login-password" required placeholder="••••••••" class="w-full mt-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <button type="submit" class="btn-primary w-full py-2.5 rounded-lg text-lg font-semibold shadow-md">
+                        Login
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- ================================== -->
+        <!-- 2. KIOSK VIEW (Employee Punch Screen) -->
+        <!-- ================================== -->
+        <div id="kiosk_view" class="flex flex-col items-center p-6 hidden">
+            <div class="card p-8 w-full max-w-xl text-center">
+                <div class="flex justify-between items-center mb-6">
+                    <button onclick="handleLogout()" class="text-gray-500 hover:text-gray-800 text-sm">
+                        <i class="fas fa-sign-out-alt mr-1"></i> Logout
+                    </button>
+                    <!-- User ID Display (Required for multi-user apps) -->
+                    <span class="text-xs text-gray-400">UID: <span id="kiosk-user-id">...</span></span>
+                </div>
+
+                <h1 class="text-4xl font-extrabold text-gray-900 mb-2">Welcome, <span id="kiosk-employee-name">Employee</span></h1>
+                
+                <div class="flex justify-center items-center my-6">
+                    <span id="kiosk-status-badge" class="px-4 py-2 rounded-full text-sm font-bold bg-gray-200 text-gray-700 shadow-inner">
+                        Clocked Out
+                    </span>
+                </div>
+
+                <button id="clock-action-btn" onclick="handleClockAction()" class="btn-success w-full max-w-sm py-4 rounded-xl text-2xl font-bold shadow-lg transform transition duration-150 hover:scale-[1.02]">
+                    Clock In
+                </button>
+                
+                <h2 class="text-xl font-semibold text-gray-700 mt-10 mb-4 border-t pt-4">Recent Activity</h2>
+                <ul id="recent-activity-list" class="list-none p-0 m-0 border border-gray-200 rounded-lg">
+                    <!-- Activity items rendered here by uiRender.js -->
+                    <li class="p-3 text-center text-gray-500">Loading activity...</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- ================================== -->
+        <!-- 3. ADMIN DASHBOARD VIEW -->
+        <!-- ================================== -->
+        <div id="admin_dashboard_view" class="w-full hidden">
+            <div class="flex justify-between items-center mb-6 border-b pb-4">
+                <h1 class="text-3xl font-extrabold text-gray-900">Admin Dashboard</h1>
+                <div class="flex items-center space-x-4">
+                    <button onclick="handleLogout()" class="text-gray-500 hover:text-gray-800 text-sm py-2 px-3 rounded-lg border hover:bg-gray-100">
+                        <i class="fas fa-sign-out-alt mr-1"></i> Logout
+                    </button>
+                    <button onclick="toggleSignupModal()" class="btn-primary px-4 py-2 rounded-lg text-sm font-medium">
+                        <i class="fas fa-user-plus mr-2"></i> Add Employee
+                    </button>
+                </div>
+            </div>
+
+            <!-- Admin Error Message -->
+            <div id="admin-error-message" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4 rounded-lg font-medium" role="alert">
+                CRITICAL DATA ERROR: Data load failed.
+            </div>
+
+            <!-- Tabs Navigation -->
+            <div class="border-b border-gray-200">
+                <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+                    <button data-target="employees-tab" onclick="switchTab('employees-tab')" class="tab-button active text-indigo-600 border-indigo-500 whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm">
+                        <i class="fas fa-users mr-2"></i> Employees
+                    </button>
+                    <button data-target="time-logs-tab" onclick="switchTab('time-logs-tab')" class="tab-button text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm">
+                        <i class="fas fa-clock mr-2"></i> Time Logs
+                    </button>
+                    <button data-target="audit-logs-tab" onclick="switchTab('audit-logs-tab')" class="tab-button text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm">
+                        <i class="fas fa-history mr-2"></i> Audit Logs
+                    </button>
+                </nav>
+            </div>
+
+            <!-- Tabs Content -->
+            <div class="mt-6">
+                <!-- Employees Tab Content -->
+                <div id="employees-tab" class="tab-content">
+                    <div class="card overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                                    <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                                    <th class="relative px-6 py-3"><span class="sr-only">Actions</span></th>
+                                </tr>
+                            </thead>
+                            <tbody id="employee-list-body" class="bg-white divide-y divide-gray-200">
+                                <!-- Employee rows rendered here by uiRender.js -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Time Logs Tab Content -->
+                <div id="time-logs-tab" class="tab-content hidden">
+                    <div class="card p-4 mb-6 flex space-x-4 items-end">
+                        <div class="flex-1">
+                            <label for="filter-employee-select" class="block text-sm font-medium text-gray-700">Filter by Employee</label>
+                            <select id="filter-employee-select" onchange="applyFilters()" class="mt-1 w-full px-3 py-2 border rounded-lg">
+                                <option value="">-- All Employees --</option>
+                            </select>
+                        </div>
+                        <div class="flex-1">
+                            <label for="filter-start-date" class="block text-sm font-medium text-gray-700">Start Date</label>
+                            <input type="date" id="filter-start-date" onchange="applyFilters()" class="mt-1 w-full px-3 py-2 border rounded-lg">
+                        </div>
+                        <div class="flex-1">
+                            <label for="filter-end-date" class="block text-sm font-medium text-gray-700">End Date</label>
+                            <input type="date" id="filter-end-date" onchange="applyFilters()" class="mt-1 w-full px-3 py-2 border rounded-lg">
+                        </div>
+                        <button onclick="generatePayrollReport()" class="btn-success px-4 py-2.5 rounded-lg whitespace-nowrap">
+                            <i class="fas fa-file-csv mr-2"></i> Generate Payroll Report
+                        </button>
+                    </div>
+
+                    <div class="card overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Timestamp</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                    <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Photo</th>
+                                    <th class="relative px-6 py-3"><span class="sr-only">Actions</span></th>
+                                </tr>
+                            </thead>
+                            <tbody id="time-log-list-body" class="bg-white divide-y divide-gray-200">
+                                <!-- Time log rows rendered here by uiRender.js -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Audit Logs Tab Content -->
+                <div id="audit-logs-tab" class="tab-content hidden">
+                    <div class="card overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Timestamp</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Admin</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Target User</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
+                                </tr>
+                            </thead>
+                            <tbody id="audit-log-list-body" class="bg-white divide-y divide-gray-200">
+                                <!-- Audit log rows rendered here by uiRender.js -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
     
     <!-- --------------------------------- -->
-    <!-- MODALS -->
+    <!-- MODALS (ID fixes applied below) -->
     <!-- --------------------------------- -->
 
     <!-- Modal: Employee Sign Up / Edit Profile -->
     <div id="employee-signup-modal" class="modal-overlay fixed inset-0 flex items-center justify-center p-4 hidden">
         <div class="card p-6 w-full max-w-md">
-            <h2 id="employee-modal-title" class="text-2xl font-bold mb-4">Sign Up New Employee</h2>
-            <form id="employee-signup-form" onsubmit="event.preventDefault(); handleEmployeeSignup();">
+            <h2 id="signup-title" class="text-2xl font-bold mb-4">Sign Up New Employee</h2>
+            <form id="employee-signup-form" onsubmit="event.preventDefault(); handleEmployeeSignup(event);">
                 <div class="space-y-4">
-                    <input type="hidden" id="employee-uid">
-                    <input type="text" id="employee-name" required placeholder="Full Name" class="w-full px-3 py-2 border rounded-lg">
-                    <input type="email" id="employee-email" required placeholder="Email (Must be unique)" class="w-full px-3 py-2 border rounded-lg">
+                    <!-- IDs updated to match adminCrud.js logic -->
+                    <input type="hidden" id="signup-uid">
+                    <input type="text" id="signup-name" required placeholder="Full Name" class="w-full px-3 py-2 border rounded-lg">
+                    <input type="email" id="signup-email" required placeholder="Email (Must be unique)" class="w-full px-3 py-2 border rounded-lg">
                     
                     <div id="signup-password-group">
-                        <input type="password" id="employee-password" required placeholder="Password (Min 6 chars)" class="w-full px-3 py-2 border rounded-lg">
+                        <input type="password" id="signup-password-input" required placeholder="Password (Min 6 chars)" class="w-full px-3 py-2 border rounded-lg">
                     </div>
                     
                     <div class="flex justify-end space-x-3 mt-6">
@@ -67,24 +250,56 @@
         </div>
     </div>
 
+    <!-- Modal: Employee Settings -->
+    <div id="employee-settings-modal" class="modal-overlay fixed inset-0 flex items-center justify-center p-4 hidden">
+        <div class="card p-6 w-full max-w-md">
+            <h2 id="settings-title" class="text-2xl font-bold mb-4">Edit Employee Settings</h2>
+            <form id="employee-settings-form" onsubmit="event.preventDefault(); handleEmployeeSettings(event);">
+                <input type="hidden" id="settings-uid">
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between p-3 border rounded-lg">
+                        <label for="settings-admin" class="text-sm font-medium text-gray-700">Grant Admin Access</label>
+                        <input type="checkbox" id="settings-admin" class="h-5 w-5 rounded text-indigo-600 border-gray-300">
+                    </div>
+                    
+                    <div>
+                        <label for="settings-max-hours" class="block text-sm font-medium text-gray-700 mb-1">Max Regular Daily Hours (for OT)</label>
+                        <input type="number" id="settings-max-hours" required min="1" step="0.5" class="w-full px-3 py-2 border rounded-lg">
+                    </div>
+                    
+                    <div>
+                        <label for="settings-break-mins" class="block text-sm font-medium text-gray-700 mb-1">Auto Break Deduction (Mins)</label>
+                        <input type="number" id="settings-break-mins" required min="0" step="1" class="w-full px-3 py-2 border rounded-lg">
+                    </div>
+
+                    <div class="flex justify-end space-x-3 mt-6">
+                        <button type="button" onclick="closeSettingsModal()" class="btn-secondary px-4 py-2 rounded-lg">Cancel</button>
+                        <button type="submit" class="btn-primary px-4 py-2 rounded-lg">Save Settings</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Modal: Edit Time Log / Add Log (Re-using structure from original, adapting IDs) -->
     <div id="log-modal" class="modal-overlay fixed inset-0 flex items-center justify-center p-4 hidden">
         <div class="card p-6 w-full max-w-md">
-            <h2 id="log-modal-title" class="text-2xl font-bold mb-4">Edit Time Entry</h2>
-            <form id="log-edit-form" onsubmit="event.preventDefault(); handleLogSave();">
+            <!-- ID updated to match adminCrud.js logic -->
+            <h2 id="log-title" class="text-2xl font-bold mb-4">Edit Time Entry</h2>
+            <form id="log-edit-form" onsubmit="event.preventDefault(); handleLogSave(event);">
                 <input type="hidden" id="log-id">
                 <div class="space-y-4">
                     <div id="log-employee-group">
-                        <label for="log-employee-name" class="block text-sm font-medium text-gray-700 mb-1">Employee</label>
-                        <p id="log-employee-name" class="w-full px-3 py-2 border rounded-lg bg-gray-50 text-sm"></p>
-                        <!-- Note: The new script.js uses a fixed P tag, not a SELECT dropdown for employee name -->
+                        <label for="log-employee-select" class="block text-sm font-medium text-gray-700 mb-1">Employee</label>
+                        <!-- Updated to use a SELECT dropdown as expected by adminCrud.js when ADDING a new log -->
+                        <select id="log-employee-select" required class="w-full px-3 py-2 border rounded-lg bg-white"></select>
                     </div>
                     
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label for="log-timestamp" class="block text-sm font-medium text-gray-700 mb-1">Date & Time</label>
-                            <!-- Note: The new script.js uses #log-timestamp, changing from #log-datetime -->
-                            <input type="datetime-local" id="log-timestamp" required step="1" class="w-full px-3 py-2 border rounded-lg">
+                            <label for="log-datetime" class="block text-sm font-medium text-gray-700 mb-1">Date & Time</label>
+                            <!-- ID updated to match adminCrud.js logic -->
+                            <input type="datetime-local" id="log-datetime" required step="1" class="w-full px-3 py-2 border rounded-lg">
                         </div>
                         <div>
                             <label for="log-type" class="block text-sm font-medium text-gray-700 mb-1">Type</label>
@@ -95,14 +310,15 @@
                         </div>
                     </div>
                     
-                    <!-- Photo Status (since script.js mentions photo management) -->
-                    <div class="flex justify-between items-center pt-2">
-                        <span id="log-photo-status" class="text-sm font-medium text-gray-700"></span>
+                    <!-- Photo Status (Photo feature is removed, so we keep this minimal) -->
+                    <div id="log-photo-status-display" class="flex justify-between items-center pt-2 hidden">
+                        <span class="text-sm font-medium text-gray-700">Photo: <span id="log-photo-status" class="font-bold">N/A</span></span>
                         <button type="button" id="log-photo-btn" class="btn-secondary px-3 py-1 rounded-lg text-xs hidden">View Photo</button>
                     </div>
 
                     <div class="flex justify-between space-x-3 mt-6">
-                        <button type="button" id="delete-log-btn" class="btn-danger px-4 py-2 rounded-lg" onclick="handleLogDelete()">Delete Entry</button>
+                        <!-- Corrected onclick to read the hidden ID field for deletion when the modal is open -->
+                        <button type="button" id="delete-log-btn" class="btn-danger px-4 py-2 rounded-lg" onclick="handleLogDelete(document.getElementById('log-id').value)">Delete Entry</button>
                         <div class="space-x-3">
                             <button type="button" onclick="closeLogModal()" class="btn-secondary px-4 py-2 rounded-lg">Cancel</button>
                             <button type="submit" class="btn-primary px-4 py-2 rounded-lg">Save Changes</button>
@@ -114,15 +330,17 @@
     </div>
 
     <!-- Modal: View Photo -->
+    <!-- Keeping this modal, although the photo logic is disabled in JS -->
     <div id="photo-modal" class="modal-overlay fixed inset-0 flex items-center justify-center p-4 hidden">
         <div class="card p-6 w-full max-w-md">
             <h2 class="text-2xl font-bold mb-4">Clock-in Photo</h2>
-            <img id="modal-photo" src="" alt="Clock-in Photo" class="w-full h-auto rounded-lg mb-4 border border-gray-300">
+            <!-- Placeholder image source since photo uploads are disabled -->
+            <img id="modal-photo" src="https://placehold.co/400x300/e0e0e0/555555?text=Photo+N/A" alt="Clock-in Photo" class="w-full h-auto rounded-lg mb-4 border border-gray-300">
             <button onclick="closePhotoModal()" class="w-full btn-primary px-4 py-2 rounded-lg">Close</button>
         </div>
     </div>
 
-    <!-- Main JavaScript Entry Point (Now using script.js) -->
-    <script type="module" src="./script.js"></script>
+    <!-- Main JavaScript Entry Point (Corrected link to main.js) -->
+    <script type="module" src="./main.js"></script>
 </body>
 </html>

@@ -30,7 +30,7 @@ export function toggleSignupModal(uid) {
 
     if (uid && state.allEmployees[uid]) {
         const emp = state.allEmployees[uid];
-        document.getElementById('signup-title').textContent = 'Edit Employee Profile';
+        document.getElementById('signup-title').textContent = `Edit Employee Profile: ${emp.name}`;
         document.getElementById('signup-name').value = emp.name;
         document.getElementById('signup-email').value = emp.email;
         document.getElementById('signup-uid').value = uid; // Hidden field to track the user being edited
@@ -163,7 +163,6 @@ export async function handleEmployeeSettings(event) {
  * @param {string} uid - The UID of the employee to delete.
  */
 export async function deleteEmployee(uid) {
-    // IMPORTANT: window.confirm() is forbidden. Proceeding with deletion and providing feedback.
     
     const employee = state.allEmployees[uid];
     if (!employee) {
@@ -197,17 +196,18 @@ export async function deleteEmployee(uid) {
 export function toggleLogModal(logId) {
     const modal = document.getElementById('log-modal');
     const form = document.getElementById('log-edit-form');
-    if (!modal || !form || !state.allEmployees) return;
+    const employeeSelect = document.getElementById('log-employee-select');
+    const deleteBtn = document.getElementById('delete-log-btn');
+    if (!modal || !form || !state.allEmployees || !employeeSelect) return;
 
     // Reset form
     form.reset();
     document.getElementById('log-title').textContent = 'Add New Time Log';
     document.getElementById('log-id').value = '';
-    document.getElementById('log-employee-select').disabled = false;
+    employeeSelect.disabled = false;
+    deleteBtn.classList.add('hidden'); // Hide delete button by default for new log
 
     // Populate Employee Select
-    const employeeSelect = document.getElementById('log-employee-select');
-    // Clear the select before repopulating
     employeeSelect.innerHTML = Object.values(state.allEmployees).map(emp =>
         `<option value="${emp.uid}">${emp.name}</option>`
     ).join('');
@@ -220,8 +220,9 @@ export function toggleLogModal(logId) {
 
         document.getElementById('log-title').textContent = 'Edit Time Log';
         document.getElementById('log-id').value = log.id;
-        document.getElementById('log-employee-select').value = log.employeeUid;
-        document.getElementById('log-employee-select').disabled = true; // Cannot change employee of an existing log
+        employeeSelect.value = log.employeeUid;
+        employeeSelect.disabled = true; // Cannot change employee of an existing log
+        deleteBtn.classList.remove('hidden'); // Show delete button for existing log
 
         // Format timestamp for datetime-local input
         const date = log.timestamp.toDate();
@@ -327,7 +328,6 @@ export async function handleLogSave(event) {
  * @param {string} logId - The ID of the log entry to delete.
  */
 export async function handleLogDelete(logId) {
-    // IMPORTANT: window.confirm() is forbidden. Proceeding with deletion and providing feedback.
     const log = state.allLogs.find(l => l.id === logId);
     if (!log) {
         setAuthMessage("Error: Log record not found.", true);
@@ -335,6 +335,9 @@ export async function handleLogDelete(logId) {
     }
 
     try {
+        // Close modal if open (this is the delete action from the modal)
+        closeLogModal(); 
+
         const logRef = doc(state.db, state.timecards_logs_path, logId);
         await deleteDoc(logRef);
 
@@ -374,7 +377,12 @@ export async function generatePayrollReport() {
         return;
     }
 
-    const applyDeductions = document.getElementById('payroll-break-deductions').checked;
+    // Since the checkbox for deductions is not included in the updated HTML,
+    // we'll assume a default state or ignore it for now. I'll re-add it 
+    // to the time-logs-tab in index.html to fix this.
+    // **Correction:** I added an optional "Break Deduction" checkbox to the filter section in index.html.
+
+    const applyDeductions = document.getElementById('payroll-break-deductions')?.checked ?? true;
 
     const startDateFilter = document.getElementById('filter-start-date');
     const endDateFilter = document.getElementById('filter-end-date');
@@ -550,8 +558,3 @@ export async function generatePayrollReport() {
     }
     setAuthMessage("Payroll report generated successfully.", false);
 }
-
-/**
- * Handles admin login functionality.
- * @param {Object} credentials - The login credentials.
- */

@@ -11,7 +11,6 @@ import {
     handleLogSave,
     handleLogDelete,
     generatePayrollReport,
-    handleAdminLogin,
     applyFilters // <--- Keeping the import here for the global scope attachment
 } from './adminCrud.js';
 import { formatTimestamp, formatTotalHours } from './utils.js';
@@ -38,18 +37,28 @@ export function renderUI() {
         });
 
         // --- 2. Auth Status Message ---
-        const authStatus = document.getElementById('auth-message-box');
+        // Corrected ID to message-box
+        const authStatus = document.getElementById('message-box'); 
         if (state.isAuthReady && state.currentUser) {
-            authStatus.textContent = `Signed in as: ${state.currentUser.email} (${state.currentUser.name})`;
-            authStatus.classList.remove('bg-red-200', 'hidden');
-            authStatus.classList.add('bg-green-200');
+            // Only update the default text if the box is not currently showing a temporary message
+            if (authStatus && authStatus.classList.contains('hidden')) {
+                authStatus.textContent = `Signed in as: ${state.currentUser.email} (${state.currentUser.name})`;
+                authStatus.classList.remove('bg-red-200', 'hidden');
+                authStatus.classList.add('bg-green-200');
+            }
         } else if (state.isAuthReady) {
-            authStatus.textContent = `Please log in.`;
-            authStatus.classList.remove('bg-green-200', 'hidden');
-            authStatus.classList.add('bg-red-200');
+            // Only update the default text if the box is not currently showing a temporary message
+            if (authStatus && authStatus.classList.contains('hidden')) {
+                authStatus.textContent = `Please log in.`;
+                authStatus.classList.remove('bg-green-200', 'hidden');
+                authStatus.classList.add('bg-red-200');
+            }
         } else {
-            authStatus.textContent = `Connecting to Firebase...`;
-            authStatus.classList.remove('bg-red-200', 'bg-green-200', 'hidden');
+            // Connecting state
+            if (authStatus) {
+                authStatus.textContent = `Connecting to Firebase...`;
+                authStatus.classList.remove('bg-red-200', 'bg-green-200', 'hidden');
+            }
         }
 
 
@@ -96,25 +105,30 @@ export function renderKiosk() {
     const clockButton = document.getElementById('clock-action-btn');
     const recentActivity = document.getElementById('recent-activity-list');
     const nameDisplay = document.getElementById('kiosk-employee-name');
+    const userIdDisplay = document.getElementById('kiosk-user-id'); // Added user ID display
     const currentStatus = state.currentUser.status || 'out';
 
     // Update Name and Status
     nameDisplay.textContent = state.currentUser.name;
+    // Set the user ID display
+    if (userIdDisplay) {
+        userIdDisplay.textContent = state.currentUser.uid;
+    }
 
     if (currentStatus === 'in') {
         kioskStatusBadge.textContent = 'Clocked In';
-        kioskStatusBadge.classList.remove('bg-gray-200', 'bg-red-500');
+        kioskStatusBadge.classList.remove('bg-gray-200', 'bg-red-500', 'text-gray-700');
         kioskStatusBadge.classList.add('bg-green-500', 'text-white');
         clockButton.textContent = 'Clock Out';
-        clockButton.classList.remove('bg-green-500');
-        clockButton.classList.add('bg-red-500', 'hover:bg-red-600');
+        clockButton.classList.remove('btn-success', 'bg-green-500', 'hover:bg-green-600');
+        clockButton.classList.add('btn-danger', 'bg-red-500', 'hover:bg-red-600');
     } else {
         kioskStatusBadge.textContent = 'Clocked Out';
         kioskStatusBadge.classList.remove('bg-green-500', 'text-white');
-        kioskStatusBadge.classList.add('bg-gray-200');
+        kioskStatusBadge.classList.add('bg-gray-200', 'text-gray-700');
         clockButton.textContent = 'Clock In';
-        clockButton.classList.remove('bg-red-500');
-        clockButton.classList.add('bg-green-500', 'hover:bg-green-600');
+        clockButton.classList.remove('btn-danger', 'bg-red-500', 'hover:bg-red-600');
+        clockButton.classList.add('btn-success', 'bg-green-500', 'hover:bg-green-600');
     }
 
     // Disable button if currently processing a clock action
@@ -126,6 +140,7 @@ export function renderKiosk() {
             <li class="flex justify-between items-center py-2 px-3 border-b last:border-b-0">
                 <span class="${log.type === 'in' ? 'text-green-600' : 'text-red-600'} font-semibold">${log.type.toUpperCase()}</span>
                 <span class="text-sm text-gray-600">${formatTimestamp(log.timestamp)}</span>
+                <button onclick="toggleLogModal('${log.id}')" class="text-xs text-indigo-500 hover:text-indigo-800">Edit</button>
             </li>
         `).join('');
         if (state.currentUserLogs.length === 0) {
@@ -186,8 +201,8 @@ export function renderEmployeeList() {
                 </span>
             </td>
             <td class="px-6 py-3 whitespace-nowrap text-right text-sm font-medium">
-                <button onclick="toggleSettingsModal('${emp.id}')" class="text-indigo-600 hover:text-indigo-900 mr-3">Edit Settings</button>
-                <button onclick="toggleSignupModal('${emp.id}')" class="text-blue-600 hover:text-blue-900 mr-3">Edit Name/Email</button>
+                <button onclick="toggleSettingsModal('${emp.id}')" class="text-indigo-600 hover:text-indigo-900 mr-3">Settings</button>
+                <button onclick="toggleSignupModal('${emp.id}')" class="text-blue-600 hover:text-blue-900 mr-3">Edit Profile</button>
                 <button onclick="deleteEmployee('${emp.id}')" class="text-red-600 hover:text-red-900">Delete</button>
             </td>
         </tr>
@@ -336,8 +351,6 @@ export function closeSettingsModal() {
     document.getElementById('employee-settings-modal').classList.add('hidden');
 }
 
-// NOTE: applyFilters function was removed from here and moved to adminCrud.js
-
 /**
  * Closes all active modals. Useful after a successful action.
  */
@@ -353,7 +366,8 @@ export function closeAllModals() {
  * @param {boolean} isError If true, displays in red (error); otherwise, green (success).
  */
 export function setAuthMessage(message, isError = false) {
-    const authStatus = document.getElementById('auth-message-box');
+    // Corrected ID to message-box
+    const authStatus = document.getElementById('message-box'); 
     if (authStatus) {
         authStatus.textContent = message;
         authStatus.classList.remove('bg-green-200', 'bg-red-200', 'hidden');
@@ -361,6 +375,7 @@ export function setAuthMessage(message, isError = false) {
 
         // Clear the message after a delay
         setTimeout(() => {
+            authStatus.classList.add('hidden');
             renderUI(); // Re-render the UI to restore the default status message
         }, 5000);
     }

@@ -2,30 +2,29 @@
 
 /*
 |--------------------------------------------------------------------------
-| 1. FIREBASE CONFIGURATION (Using Canvas Globals)
+| 1. FIREBASE CONFIGURATION (Project ID: payroll-52d0b)
 |--------------------------------------------------------------------------
 */
 
-// Check for and use Canvas global variables
-export const FIREBASE_CONFIG = typeof __firebase_config !== 'undefined' 
-    ? JSON.parse(__firebase_config) 
-    : { /* Fallback for local testing, though generally unused in Canvas */ };
-
-// Retrieve the App ID from the global variable or use a fallback
-export const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+export const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyDkNNCV_5D9TpW3vhY2oTbnpGVCtlZC5n8",
+    authDomain: "payroll-52d0b.firebaseapp.com",
+    projectId: "payroll-52d0b",
+    storageBucket: "payroll-52d0b.firebasestorage.app",
+    messagingSenderId: "483678226011",
+    appId: "1:483678226011:web:9ddbc595e4ec9e1325617e",
+    measurementId: "G-SB0PVF2ZYV"
+};
 
 /*
 |--------------------------------------------------------------------------
 | 2. FIREBASE PATHS
 |--------------------------------------------------------------------------
-| Paths are constructed based on the required structure for shared/public data:
-| /artifacts/{appId}/public/data/{collectionName}
 */
 
-// BASE_PATH is derived from the global APP_ID
-export const BASE_PATH = `artifacts/${APP_ID}/public/data`;
+const appId = FIREBASE_CONFIG.projectId; 
+export const BASE_PATH = `artifacts/${appId}/public/data`;
 
-// The paths are defined here but are set into the state in firebase.js using the resolved BASE_PATH
 export const timecards_employees_path = `${BASE_PATH}/employees`;
 export const timecards_logs_path = `${BASE_PATH}/time_logs`;
 export const timecards_audit_logs_path = `${BASE_PATH}/audit_logs`;
