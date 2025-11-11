@@ -355,6 +355,14 @@ export async function handleLogDelete(logId) {
 */
 
 /**
+ * Re-renders the time log list when filters are changed.
+ */
+export function applyFilters() {
+    renderTimeLogList();
+}
+
+
+/**
  * Generates and downloads a CSV file based on the currently filtered logs.
  * Includes shift calculations and overtime logic.
  */
@@ -547,6 +555,3 @@ export async function generatePayrollReport() {
  * Handles admin login functionality.
  * @param {Object} credentials - The login credentials.
  */
-export function handleAdminLogin(credentials) {
-    // ...existing implementation...
-}

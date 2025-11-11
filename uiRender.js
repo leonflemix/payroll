@@ -11,7 +11,8 @@ import {
     handleLogSave,
     handleLogDelete,
     generatePayrollReport,
-    handleAdminLogin
+    handleAdminLogin,
+    applyFilters // <--- Keeping the import here for the global scope attachment
 } from './adminCrud.js';
 import { formatTimestamp, formatTotalHours } from './utils.js';
 
@@ -205,19 +206,21 @@ export function renderTimeLogList() {
     if (!tableBody || !state.allLogs || !state.allEmployees) return;
 
     // --- Populate Employee Filter Dropdown ---
-    if (employeeFilter && employeeFilter.children.length <= 1) { // Only populate once
-        const employees = Object.values(state.allEmployees).sort((a, b) => a.name.localeCompare(b.name));
-        employeeFilter.innerHTML = '<option value="">-- All Employees --</option>' + employees.map(emp =>
-            `<option value="${emp.id}">${emp.name}</option>`
-        ).join('');
-        // Re-set the selected value if it exists in state
-        if (state.filterEmployeeUid) {
-            employeeFilter.value = state.filterEmployeeUid;
-        }
+    // Repopulate every time to ensure the list is fresh, but keep selected value.
+    const currentFilterUid = employeeFilter.value;
+    const employees = Object.values(state.allEmployees).sort((a, b) => a.name.localeCompare(b.name));
+    employeeFilter.innerHTML = '<option value="">-- All Employees --</option>' + employees.map(emp =>
+        `<option value="${emp.id}">${emp.name}</option>`
+    ).join('');
+    // Re-set the selected value if it exists in state
+    if (currentFilterUid) {
+        employeeFilter.value = currentFilterUid;
     }
+
 
     // --- Apply Filtering ---
     let filteredLogs = state.allLogs;
+    // Use the values from the form inputs
     const employeeUid = employeeFilter.value;
     const startDate = startDateFilter.value ? new Date(startDateFilter.value) : null;
     const endDate = endDateFilter.value ? new Date(endDateFilter.value) : null;
@@ -333,12 +336,7 @@ export function closeSettingsModal() {
     document.getElementById('employee-settings-modal').classList.add('hidden');
 }
 
-/**
- * Re-renders the time log list when filters are changed.
- */
-export function applyFilters() {
-    renderTimeLogList();
-}
+// NOTE: applyFilters function was removed from here and moved to adminCrud.js
 
 /**
  * Closes all active modals. Useful after a successful action.
