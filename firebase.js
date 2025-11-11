@@ -38,13 +38,14 @@ export async function initFirebase() {
         });
 
         // --- MANDATORY CANVAS AUTHENTICATION ---
-        // Sign in using the custom token provided by the environment, or anonymously as a fallback.
+        // Sign in using the custom token provided by the environment.
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
             await signInWithCustomToken(authInstance, __initial_auth_token);
             console.log("Signed in with Custom Token.");
         } else {
-            await signInAnonymously(authInstance);
-            console.log("Signed in Anonymously.");
+            // If token is missing, the app cannot proceed as intended. 
+            // We just log an error and rely on the state listener to handle the view.
+            console.error("CRITICAL: Initial auth token is missing.");
         }
         // -------------------------------------
 
@@ -109,7 +110,7 @@ export async function fetchAndSetCurrentUser(user) {
             navigateTo('login_view');
         } else {
             // Logged in with custom token/email but no profile doc
-            console.error(`CRITICAL ERROR: User profile document missing for Auth UID: ${user.uid}. Logging out.`);
+            console.error(`CRITICAL ERROR: User profile document missing for Auth UID: ${user.uid}. Logging out. Please ensure user profiles are created after signup.`);
             setAuthMessage("Profile not found. Contact administrator.", true);
             await signOut(state.auth);
         }
