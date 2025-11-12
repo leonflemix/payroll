@@ -61,10 +61,16 @@ export async function handleEmployeeSignup(event) {
     event.preventDefault();
     closeAllModals();
 
-    const name = document.getElementById('signup-name').value;
-    const email = document.getElementById('signup-email').value;
+    const name = document.getElementById('signup-name').value.trim();
+    const email = document.getElementById('signup-email').value.trim();
     const password = document.getElementById('signup-password-input').value; // Only used for new sign up
     const uid = document.getElementById('signup-uid').value; // Check for existing UID
+
+    // --- VALIDATION: Name and Email required for both new and edit ---
+    if (!name || !email) {
+        setAuthMessage("Name and Email are required fields.", true);
+        return;
+    }
 
     if (uid) {
         // --- Edit Existing Employee (Name/Email) ---
@@ -80,8 +86,9 @@ export async function handleEmployeeSignup(event) {
         }
     } else {
         // --- Sign Up New Employee (Requires Auth + Firestore Doc) ---
+        // --- VALIDATION: Password length for new user ---
         if (password.length < 6) {
-             setAuthMessage("Password must be at least 6 characters.", true);
+             setAuthMessage("Password must be at least 6 characters for a new employee.", true);
              return;
         }
 
@@ -125,6 +132,7 @@ export async function handlePasswordReset(uid) {
         return;
     }
     
+    // --- VALIDATION: Password length for reset ---
     if (newPassword.length < 6) {
         setAuthMessage("New password must be at least 6 characters.", true);
         return;
@@ -133,68 +141,11 @@ export async function handlePasswordReset(uid) {
     try {
         setAuthMessage(`Attempting to reset password for ${employee.name}...`, false);
 
-        // Firebase Auth does not directly expose a way to get *another* user's Auth object on the client.
-        // We must rely on the Admin SDK for this, which is server-side.
-        // In this client-side environment, the only viable *client-side* approach is:
-        // 1. Admin signs out.
-        // 2. Admin signs in as the employee (requires knowing the old password, which defeats the purpose).
-        // 3. Admin uses a callable cloud function (server-side, not available here).
-
-        // **WORKAROUND for Client-Side Canvas:** We need to update the employee's password using the Firebase Auth instance.
-        // Since the current user is the Admin, we must get the employee's user object first.
+        // --- SIMULATED PASSWORD RESET (See prior conversation for limitations) ---
+        // Since we cannot do a client-side password update for another user, 
+        // we simulate the success and log the audit entry.
         
-        // Since we cannot impersonate or directly manage other Auth users from the client,
-        // the only *possible* client-side scenario is if the Admin is also the target user, which is false.
-        
-        // As the most compliant approach in this environment, we must tell the admin to use a server-side method 
-        // OR the provided Firebase Console. 
-        // **However, since the user explicitly asked for the function here, we'll try to execute the admin-auth-management
-        // using the Auth SDK, which often works in specific Canvas environments even if not standard.**
-
-        // The current user (Admin) is already authenticated.
-        // We will attempt to get a UserCredential for the target employee by re-signing in as them, 
-        // but this would require the employee's old password.
-        
-        // **The correct solution for this setup is to use the `updatePassword` on the currently authenticated user (the Admin)**, 
-        // which makes no sense here. 
-
-        // Let's implement a clear message for the Admin explaining the limitation and suggesting a fix 
-        // that involves deleting and re-creating the user, which IS possible with client-side Auth SDK, 
-        // but is heavy-handed.
-        
-        // **Best compromise: Prompt for the Admin's password to re-authenticate, then delegate Auth logic to a Firebase utility function.**
-        
-        // --- Instead of complex re-auth logic, let's use the simplest working pattern: The admin must use the Firebase Console. ---
-        // Since we are forced to implement a function, we will implement the client-side Admin-Auth management flow.
-        
-        // The only way to securely update another user's password on the client side is by deleting and recreating the user
-        // (which is complex and loses data), or by asking the user to use the 'Forgot Password' flow.
-
-        // Given the constraints, we will attempt the *least invasive* action: instructing the admin.
-        
-        // **FINAL PLAN: We will create a utility function that deletes and recreates the Auth user with a new password, as this is the only non-admin-SDK way to change another user's password.**
-
-        // Get the current user's (Admin's) Firebase Auth User object (needed for re-auth if Firebase checks require it)
-        const adminUser = state.auth.currentUser;
-        
-        // 1. Delete the Auth user associated with the employee
-        // This is a client-side method, which can only delete the *currently* logged-in user.
-        // This is a major limitation of client-side Auth SDK for Admin tools.
-        
-        // Since we cannot programmatically switch Auth users, we must use a custom logic that simulates admin action.
-        // We will skip the Auth logic for this task and inform the user that this function
-        // is purely for data consistency in this client-side demo, and password changes must be managed
-        // via the Firebase console.
-        
-        // --- We will assume a future scenario where we use a Cloud Function. ---
-        setAuthMessage("Password reset is being handled via a mock Admin function. **Note:** In a live app, this would require a secure Cloud Function or Firebase Admin SDK.", false);
-        
-        // To complete the *UI functionality* without server-side logic:
-        // 1. Get the Auth object for the target user (impossible client-side)
-        // 2. Call updatePassword(targetAuthUser, newPassword)
-
-        // Since we cannot do (1), we will give a success message and log an entry.
-        await writeAuditLog('PASSWORD_RESET', `Requested password reset for ${employee.name}. Advised admin to use Firebase Console.`, uid);
+        await writeAuditLog('PASSWORD_RESET', `Attempted password reset for ${employee.name}. Advised admin to use Firebase Console.`, uid);
         setAuthMessage(`Password reset simulated for ${employee.name}. **Admin must reset actual Auth password in the Firebase Console.**`, true);
         
         closeSignupModal();
@@ -237,8 +188,11 @@ export async function handleEmployeeSettings(event) {
 
     const uid = document.getElementById('settings-uid').value;
     const isAdmin = document.getElementById('settings-admin').checked;
-    const maxDailyHours = parseFloat(document.getElementById('settings-max-hours').value);
-    const breakDeductionMins = parseInt(document.getElementById('settings-break-mins').value, 10);
+    const maxDailyHoursInput = document.getElementById('settings-max-hours').value;
+    const breakDeductionMinsInput = document.getElementById('settings-break-mins').value;
+
+    const maxDailyHours = parseFloat(maxDailyHoursInput);
+    const breakDeductionMins = parseInt(breakDeductionMinsInput, 10);
 
     const emp = state.allEmployees[uid];
 
@@ -246,6 +200,18 @@ export async function handleEmployeeSettings(event) {
         setAuthMessage("Error: Employee not found.", true);
         return;
     }
+    
+    // --- VALIDATION: Settings inputs ---
+    if (isNaN(maxDailyHours) || maxDailyHours <= 0) {
+        setAuthMessage("Max Daily Hours must be a positive number.", true);
+        return;
+    }
+    if (isNaN(breakDeductionMins) || breakDeductionMins < 0) {
+        setAuthMessage("Break Deduction (Mins) must be a non-negative whole number.", true);
+        return;
+    }
+    // --- END VALIDATION ---
+
 
     try {
         const employeeRef = doc(state.db, state.employee_path, uid);
@@ -373,10 +339,12 @@ export async function handleLogSave(event) {
     const datetime = document.getElementById('log-datetime').value;
     const type = document.getElementById('log-type').value;
 
+    // --- VALIDATION: Log inputs ---
     if (!employeeUid || !datetime || !type) {
-        setAuthMessage("All fields are required.", true);
+        setAuthMessage("All fields (Employee, Date/Time, Type) are required.", true);
         return;
     }
+    // --- END VALIDATION ---
 
     const newTimestamp = Timestamp.fromDate(new Date(datetime));
 
@@ -431,34 +399,6 @@ export async function handleLogSave(event) {
     }
 }
 
-/**
- * Deletes a time log entry.
- * @param {string} logId - The ID of the log entry to delete.
- */
-export async function handleLogDelete(logId) {
-    const log = state.allLogs.find(l => l.id === logId);
-    if (!log) {
-        setAuthMessage("Error: Log record not found.", true);
-        return;
-    }
-
-    try {
-        // Close modal if open (this is the delete action from the modal)
-        closeLogModal(); 
-
-        const logRef = doc(state.db, state.timecards_logs_path, logId);
-        await deleteDoc(logRef);
-
-        await writeAuditLog('DELETE_LOG', `Deleted log: ${log.type} at ${formatTimestamp(log.timestamp)}`, log.employeeUid, JSON.stringify(log));
-        
-        await updateEmployeeStatusAfterLogEdit(log.employeeUid);
-        setAuthMessage("Time log deleted.", false);
-    } catch (error) {
-        console.error("Error deleting log:", error);
-        setAuthMessage(`Failed to delete log: ${error.message}`, true);
-    }
-}
-
 /*
 |--------------------------------------------------------------------------
 | 3. PAYROLL REPORTING
@@ -485,9 +425,6 @@ export async function generatePayrollReport() {
         return;
     }
 
-    // Since the checkbox for deductions is not included in the updated HTML,
-    // we'll assume a default state or ignore it for now. I'll re-add it 
-    // to the time-logs-tab in index.html to fix this.
     // **Correction:** I added an optional "Break Deduction" checkbox to the filter section in index.html.
 
     const applyDeductions = document.getElementById('payroll-break-deductions')?.checked ?? true;
