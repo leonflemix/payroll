@@ -1,4 +1,3 @@
-<!-- Filename: index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -27,208 +26,207 @@
         .log-table tr:nth-child(even) { background-color: #f9fafb; }
         .log-table tr:hover { background-color: #f3f4f6; }
         .modal-overlay { background-color: rgba(0, 0, 0, 0.5); z-index: 50; }
-        /* Style for active tab to maintain consistency with JS */
-        .tab-button.active {
-            color: #4f46e5; /* indigo-600 */
-            border-color: #4f46e5; /* indigo-500 */
-        }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
 
     <!-- Auth Message Box (for transient messages) -->
-    <!-- ID changed to #message-box as used consistently in the JS -->
     <div id="message-box" class="fixed top-4 right-4 p-4 rounded-lg shadow-lg hidden transition duration-300"></div>
 
     <!-- Main Content Area -->
-    <div id="app-container" class="w-full max-w-4xl">
-        
-        <!-- ================================== -->
-        <!-- 1. LOGIN VIEW -->
-        <!-- ================================== -->
-        <div id="login_view" class="flex flex-col items-center justify-center p-6 min-h-[30rem] hidden">
-            <div class="card p-8 w-full max-w-md">
-                <h1 class="text-3xl font-extrabold text-gray-900 mb-6 text-center">Timecard Login</h1>
-                <p class="text-sm text-gray-500 mb-6 text-center">Sign in as employee or use `admin@kiosk.com` to access the dashboard.</p>
-                
-                <form id="login-form" onsubmit="event.preventDefault(); handleLogin();" class="space-y-6">
-                    <div>
-                        <label for="login-email" class="block text-sm font-medium text-gray-700">Email Address</label>
-                        <input type="email" id="login-email" required placeholder="user@domain.com" class="w-full mt-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+    <div id="app-container" class="w-full max-w-7xl">
+
+        <!-- --------------------------------- -->
+        <!-- VIEW: 1. LOGIN -->
+        <!-- --------------------------------- -->
+        <div id="login_view" class="flex flex-col items-center justify-center p-8 min-h-[500px]">
+            <div class="card p-8 w-full max-w-sm text-center">
+                <h1 class="text-3xl font-bold text-gray-800 mb-6">Employee Kiosk Login</h1>
+                <form id="login-form" onsubmit="event.preventDefault(); handleLogin();">
+                    <div class="space-y-4">
+                        <input type="email" id="login-email" required placeholder="Email (e.g., admin@kiosk.com)" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+                        <input type="password" id="login-password" required placeholder="Password" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+                        <button type="submit" class="w-full btn-primary px-4 py-3 rounded-lg text-lg font-semibold shadow-md">Sign In</button>
                     </div>
-                    <div>
-                        <label for="login-password" class="block text-sm font-medium text-gray-700">Password</label>
-                        <input type="password" id="login-password" required placeholder="••••••••" class="w-full mt-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
-                    </div>
-                    <button type="submit" class="btn-primary w-full py-2.5 rounded-lg text-lg font-semibold shadow-md">
-                        Login
-                    </button>
                 </form>
             </div>
         </div>
+        
+        <!-- --------------------------------- -->
+        <!-- VIEW: 2. KIOSK -->
+        <!-- --------------------------------- -->
+        <div id="kiosk_view" class="hidden p-8">
+            <div class="card p-8 w-full max-w-lg mx-auto text-center">
+                <h1 class="text-3xl font-bold text-gray-800 mb-2" id="kiosk-employee-name">Loading...</h1>
+                <p class="text-sm text-gray-500 mb-6">UID: <span id="kiosk-user-id"></span></p>
 
-        <!-- ================================== -->
-        <!-- 2. KIOSK VIEW (Employee Punch Screen) -->
-        <!-- ================================== -->
-        <div id="kiosk_view" class="flex flex-col items-center p-6 hidden">
-            <div class="card p-8 w-full max-w-xl text-center">
-                <div class="flex justify-between items-center mb-6">
-                    <button onclick="handleLogout()" class="text-gray-500 hover:text-gray-800 text-sm">
-                        <i class="fas fa-sign-out-alt mr-1"></i> Logout
-                    </button>
-                    <!-- User ID Display (Required for multi-user apps) -->
-                    <span class="text-xs text-gray-400">UID: <span id="kiosk-user-id">...</span></span>
-                </div>
-
-                <h1 class="text-4xl font-extrabold text-gray-900 mb-2">Welcome, <span id="kiosk-employee-name">Employee</span></h1>
-                
-                <div class="flex justify-center items-center my-6">
-                    <span id="kiosk-status-badge" class="px-4 py-2 rounded-full text-sm font-bold bg-gray-200 text-gray-700 shadow-inner">
+                <div class="flex flex-col items-center justify-center space-y-6">
+                    <!-- Status Badge -->
+                    <span id="kiosk-status-badge" class="px-5 py-2 inline-flex text-lg leading-5 font-bold rounded-full bg-gray-200 text-gray-700 shadow-lg">
                         Clocked Out
                     </span>
+
+                    <!-- Clock Button -->
+                    <button id="clock-action-btn" onclick="handleClockAction()" class="w-full max-w-xs px-6 py-4 rounded-full text-2xl font-bold shadow-xl transition transform duration-150 ease-in-out bg-green-500 hover:bg-green-600 active:scale-95">
+                        Clock In
+                    </button>
+
+                    <div class="w-full max-w-xs">
+                        <button onclick="handleLogout()" class="w-full mt-4 text-sm text-gray-500 hover:text-gray-700">
+                            <i class="fas fa-sign-out-alt mr-1"></i> Sign Out
+                        </button>
+                    </div>
                 </div>
 
-                <button id="clock-action-btn" onclick="handleClockAction()" class="btn-success w-full max-w-sm py-4 rounded-xl text-2xl font-bold shadow-lg transform transition duration-150 hover:scale-[1.02]">
-                    Clock In
-                </button>
-                
-                <h2 class="text-xl font-semibold text-gray-700 mt-10 mb-4 border-t pt-4">Recent Activity</h2>
-                <ul id="recent-activity-list" class="list-none p-0 m-0 border border-gray-200 rounded-lg">
-                    <!-- Activity items rendered here by uiRender.js -->
-                    <li class="p-3 text-center text-gray-500">Loading activity...</li>
+                <h2 class="text-xl font-semibold text-gray-800 mt-10 mb-4">Recent Activity</h2>
+                <ul id="recent-activity-list" class="bg-gray-50 rounded-lg border border-gray-200 divide-y divide-gray-200">
+                    <!-- Logs populated by uiRender.js -->
                 </ul>
             </div>
         </div>
 
-        <!-- ================================== -->
-        <!-- 3. ADMIN DASHBOARD VIEW -->
-        <!-- ================================== -->
-        <div id="admin_dashboard_view" class="w-full hidden">
-            <div class="flex justify-between items-center mb-6 border-b pb-4">
-                <h1 class="text-3xl font-extrabold text-gray-900">Admin Dashboard</h1>
-                <div class="flex items-center space-x-4">
-                    <button onclick="handleLogout()" class="text-gray-500 hover:text-gray-800 text-sm py-2 px-3 rounded-lg border hover:bg-gray-100">
-                        <i class="fas fa-sign-out-alt mr-1"></i> Logout
-                    </button>
-                    <button onclick="toggleSignupModal()" class="btn-primary px-4 py-2 rounded-lg text-sm font-medium">
-                        <i class="fas fa-user-plus mr-2"></i> Add Employee
-                    </button>
-                </div>
-            </div>
-
+        <!-- --------------------------------- -->
+        <!-- VIEW: 3. ADMIN DASHBOARD -->
+        <!-- --------------------------------- -->
+        <div id="admin_dashboard_view" class="hidden p-4 md:p-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-6">Admin Dashboard</h1>
+            
             <!-- Admin Error Message -->
-            <div id="admin-error-message" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4 rounded-lg font-medium" role="alert">
-                CRITICAL DATA ERROR: Data load failed.
-            </div>
+            <div id="admin-error-message" class="hidden p-3 mb-4 rounded-lg text-red-700 bg-red-100 font-medium"></div>
 
-            <!-- Tabs Navigation -->
-            <div class="border-b border-gray-200">
+            <!-- Tabs -->
+            <div class="border-b border-gray-200 mb-6">
                 <nav class="-mb-px flex space-x-8" aria-label="Tabs">
-                    <button data-target="employees-tab" onclick="switchTab('employees-tab')" class="tab-button active text-indigo-600 border-indigo-500 whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm">
-                        <i class="fas fa-users mr-2"></i> Employees
+                    <button class="tab-button whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm text-indigo-600 border-indigo-500" data-target="tab-employees" onclick="switchTab('tab-employees')">
+                        Employees
                     </button>
-                    <button data-target="time-logs-tab" onclick="switchTab('time-logs-tab')" class="tab-button text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm">
-                        <i class="fas fa-clock mr-2"></i> Time Logs
+                    <button class="tab-button whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300" data-target="tab-logs" onclick="switchTab('tab-logs')">
+                        Time Logs
                     </button>
-                    <button data-target="audit-logs-tab" onclick="switchTab('audit-logs-tab')" class="tab-button text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm">
-                        <i class="fas fa-history mr-2"></i> Audit Logs
+                    <button class="tab-button whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300" data-target="tab-audit" onclick="switchTab('tab-audit')">
+                        Audit History
+                    </button>
+                    <button onclick="handleLogout()" class="ml-auto text-sm text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-sign-out-alt mr-1"></i> Sign Out
                     </button>
                 </nav>
             </div>
 
-            <!-- Tabs Content -->
-            <div class="mt-6">
-                <!-- Employees Tab Content -->
-                <div id="employees-tab" class="tab-content">
-                    <div class="card overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                                    <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                                    <th class="relative px-6 py-3"><span class="sr-only">Actions</span></th>
-                                </tr>
-                            </thead>
-                            <tbody id="employee-list-body" class="bg-white divide-y divide-gray-200">
-                                <!-- Employee rows rendered here by uiRender.js -->
-                            </tbody>
-                        </table>
-                    </div>
+            <!-- TAB CONTENT: Employees -->
+            <div id="tab-employees" class="tab-content">
+                <div class="card p-6 mb-6 flex justify-between items-center">
+                    <h2 class="text-xl font-semibold text-gray-700">Manage Employee Profiles</h2>
+                    <button onclick="toggleSignupModal()" class="btn-primary px-4 py-2 rounded-lg text-sm shadow-md">
+                        <i class="fas fa-user-plus mr-2"></i> New Employee
+                    </button>
                 </div>
+                
+                <div class="overflow-x-auto shadow-md rounded-lg">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-center">Status</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                                <th scope="col" class="relative px-6 py-3"><span class="sr-only">Actions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="employee-list-body" class="bg-white divide-y divide-gray-200">
+                            <!-- Employee rows rendered by uiRender.js -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
 
-                <!-- Time Logs Tab Content -->
-                <div id="time-logs-tab" class="tab-content hidden">
-                    <div class="card p-4 mb-6 flex space-x-4 items-end">
-                        <div class="flex-1">
-                            <label for="filter-employee-select" class="block text-sm font-medium text-gray-700">Filter by Employee</label>
-                            <select id="filter-employee-select" onchange="applyFilters()" class="mt-1 w-full px-3 py-2 border rounded-lg">
-                                <option value="">-- All Employees --</option>
-                            </select>
-                        </div>
-                        <div class="flex-1">
-                            <label for="filter-start-date" class="block text-sm font-medium text-gray-700">Start Date</label>
-                            <input type="date" id="filter-start-date" onchange="applyFilters()" class="mt-1 w-full px-3 py-2 border rounded-lg">
-                        </div>
-                        <div class="flex-1">
-                            <label for="filter-end-date" class="block text-sm font-medium text-gray-700">End Date</label>
-                            <input type="date" id="filter-end-date" onchange="applyFilters()" class="mt-1 w-full px-3 py-2 border rounded-lg">
-                        </div>
-                        <!-- Checkbox for break deductions for the payroll report logic -->
-                        <div class="flex items-center self-center h-full pt-4">
-                             <input type="checkbox" id="payroll-break-deductions" checked class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 mr-2">
-                             <label for="payroll-break-deductions" class="text-sm font-medium text-gray-700">Apply Breaks</label>
-                        </div>
-                        <button onclick="generatePayrollReport()" class="btn-success px-4 py-2.5 rounded-lg whitespace-nowrap">
-                            <i class="fas fa-file-csv mr-2"></i> Generate Payroll Report
+            <!-- TAB CONTENT: Time Logs -->
+            <div id="tab-logs" class="tab-content hidden">
+                <div class="card p-6 mb-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-semibold text-gray-700">Time Log Management</h2>
+                        <button onclick="toggleLogModal()" class="btn-primary px-4 py-2 rounded-lg text-sm shadow-md">
+                            <i class="fas fa-plus mr-2"></i> Add Log Manually
                         </button>
                     </div>
 
-                    <div class="card overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Timestamp</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                                    <!-- REMOVED PHOTO HEADER -->
-                                    <th class="relative px-6 py-3"><span class="sr-only">Actions</span></th>
-                                </tr>
-                            </thead>
-                            <tbody id="time-log-list-body" class="bg-white divide-y divide-gray-200">
-                                <!-- Time log rows rendered here by uiRender.js -->
-                            </tbody>
-                        </table>
+                    <!-- Filters and Report -->
+                    <div class="flex flex-wrap gap-4 items-end mb-4">
+                        <div class="flex-grow">
+                            <label for="filter-employee-select" class="block text-xs font-medium text-gray-500">Filter by Employee</label>
+                            <select id="filter-employee-select" onchange="applyFilters()" class="w-full border-gray-300 rounded-lg shadow-sm text-sm">
+                                <!-- Options populated by uiRender.js -->
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label for="filter-start-date" class="block text-xs font-medium text-gray-500">Start Date</label>
+                            <input type="date" id="filter-start-date" onchange="applyFilters()" class="border-gray-300 rounded-lg shadow-sm text-sm">
+                        </div>
+                        
+                        <div>
+                            <label for="filter-end-date" class="block text-xs font-medium text-gray-500">End Date</label>
+                            <input type="date" id="filter-end-date" onchange="applyFilters()" class="border-gray-300 rounded-lg shadow-sm text-sm">
+                        </div>
+
+                        <div class="flex items-center">
+                            <input id="payroll-break-deductions" type="checkbox" checked class="h-4 w-4 text-indigo-600 border-gray-300 rounded">
+                            <label for="payroll-break-deductions" class="ml-2 block text-sm text-gray-900">Apply Break Deductions</label>
+                        </div>
+                        
+                        <button onclick="generatePayrollReport()" class="btn-success px-4 py-2 rounded-lg text-sm shadow-md ml-auto">
+                            <i class="fas fa-download mr-2"></i> Generate Payroll CSV
+                        </button>
                     </div>
                 </div>
                 
-                <!-- Audit Logs Tab Content -->
-                <div id="audit-logs-tab" class="tab-content hidden">
-                    <div class="card overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Timestamp</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Admin</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Target User</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
-                                </tr>
-                            </thead>
-                            <tbody id="audit-log-list-body" class="bg-white divide-y divide-gray-200">
-                                <!-- Audit log rows rendered here by uiRender.js -->
-                            </tbody>
-                        </table>
-                    </div>
+                <div class="overflow-x-auto shadow-md rounded-lg">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead id="time-log-list-head" class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                <th scope="col" class="relative px-6 py-3"><span class="sr-only">Actions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="time-log-list-body" class="bg-white divide-y divide-gray-200">
+                            <!-- Time Log rows rendered by uiRender.js -->
+                        </tbody>
+                    </table>
                 </div>
             </div>
+
+            <!-- TAB CONTENT: Audit History -->
+            <div id="tab-audit" class="tab-content hidden">
+                <div class="card p-6 mb-6">
+                    <h2 class="text-xl font-semibold text-gray-700">Recent Administrative Activity (Last 10)</h2>
+                </div>
+                
+                <div class="overflow-x-auto shadow-md rounded-lg">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Timestamp</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Admin</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Target Employee</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
+                            </tr>
+                        </thead>
+                        <tbody id="audit-log-list-body" class="bg-white divide-y divide-gray-200">
+                            <!-- Audit Log rows rendered by uiRender.js -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
         </div>
 
     </div>
     
     <!-- --------------------------------- -->
-    <!-- MODALS (ID fixes applied below) -->
+    <!-- MODALS -->
     <!-- --------------------------------- -->
 
     <!-- Modal: Employee Sign Up / Edit Profile -->
@@ -237,24 +235,13 @@
             <h2 id="signup-title" class="text-2xl font-bold mb-4">Sign Up New Employee</h2>
             <form id="employee-signup-form" onsubmit="event.preventDefault(); handleEmployeeSignup(event);">
                 <div class="space-y-4">
-                    <!-- IDs updated to match adminCrud.js logic -->
                     <input type="hidden" id="signup-uid">
                     <input type="text" id="signup-name" required placeholder="Full Name" class="w-full px-3 py-2 border rounded-lg">
                     <input type="email" id="signup-email" required placeholder="Email (Must be unique)" class="w-full px-3 py-2 border rounded-lg">
                     
-                    <!-- New Employee Signup Password Group -->
-                    <div id="signup-password-group">
+                    <!-- Only for NEW Signup -->
+                    <div id="signup-password-group" class="mt-4">
                         <input type="password" id="signup-password-input" required placeholder="Password (Min 6 chars)" class="w-full px-3 py-2 border rounded-lg">
-                    </div>
-
-                    <!-- Password Reset Section (Admin Edit Mode Only) -->
-                    <div id="password-reset-group" class="hidden border-t pt-4">
-                        <label for="new-password-input" class="block text-lg font-semibold text-gray-700 mb-2">Reset Password</label>
-                        <p class="text-sm text-gray-500 mb-2">Enter a new password for the employee below.</p>
-                        <input type="password" id="new-password-input" placeholder="Enter new password (Min 6 chars)" class="w-full px-3 py-2 border rounded-lg mb-3">
-                        <button type="button" onclick="handlePasswordReset(document.getElementById('signup-uid').value)" class="btn-danger w-full py-2 rounded-lg">
-                            <i class="fas fa-sync-alt mr-2"></i> Set New Password
-                        </button>
                     </div>
                     
                     <div class="flex justify-end space-x-3 mt-6">
@@ -263,29 +250,44 @@
                     </div>
                 </div>
             </form>
+
+            <!-- Password Reset Section (Only visible when editing existing user) -->
+            <div id="password-reset-group" class="hidden mt-6 pt-4 border-t border-gray-200">
+                <h3 class="text-lg font-semibold mb-3 text-red-600">Admin Password Reset</h3>
+                <p class="text-sm text-gray-600 mb-3">
+                    **Warning:** Due to security restrictions, you must reset the user's password directly in the Firebase console. Use the button below to log an audit entry and receive a reminder message.
+                </p>
+                <input type="password" id="new-password-input" placeholder="New Password (Min 6 chars)" class="w-full px-3 py-2 border rounded-lg mb-4">
+                <button type="button" onclick="handlePasswordReset(document.getElementById('signup-uid').value)" class="w-full btn-danger px-4 py-2 rounded-lg text-sm">
+                    Log Password Reset Attempt
+                </button>
+            </div>
         </div>
     </div>
 
     <!-- Modal: Employee Settings -->
     <div id="employee-settings-modal" class="modal-overlay fixed inset-0 flex items-center justify-center p-4 hidden">
         <div class="card p-6 w-full max-w-md">
-            <h2 id="settings-title" class="text-2xl font-bold mb-4">Edit Employee Settings</h2>
+            <h2 id="settings-title" class="text-2xl font-bold mb-4">Edit Settings</h2>
             <form id="employee-settings-form" onsubmit="event.preventDefault(); handleEmployeeSettings(event);">
                 <input type="hidden" id="settings-uid">
                 <div class="space-y-4">
-                    <div class="flex items-center justify-between p-3 border rounded-lg">
-                        <label for="settings-admin" class="text-sm font-medium text-gray-700">Grant Admin Access</label>
-                        <input type="checkbox" id="settings-admin" class="h-5 w-5 rounded text-indigo-600 border-gray-300">
+                    <div>
+                        <label class="inline-flex items-center">
+                            <input type="checkbox" id="settings-admin" class="form-checkbox h-5 w-5 text-indigo-600 rounded">
+                            <span class="ml-2 text-gray-700 font-medium">Is Administrator?</span>
+                        </label>
                     </div>
                     
                     <div>
-                        <label for="settings-max-hours" class="block text-sm font-medium text-gray-700 mb-1">Max Regular Daily Hours (for OT)</label>
-                        <input type="number" id="settings-max-hours" required min="1" step="0.5" class="w-full px-3 py-2 border rounded-lg">
+                        <label for="settings-max-hours" class="block text-sm font-medium text-gray-700 mb-1">Max Daily Regular Hours</label>
+                        <input type="number" id="settings-max-hours" step="0.5" required min="1" class="w-full px-3 py-2 border rounded-lg">
                     </div>
                     
                     <div>
-                        <label for="settings-break-mins" class="block text-sm font-medium text-gray-700 mb-1">Auto Break Deduction (Mins)</label>
-                        <input type="number" id="settings-break-mins" required min="0" step="1" class="w-full px-3 py-2 border rounded-lg">
+                        <label for="settings-break-mins" class="block text-sm font-medium text-gray-700 mb-1">Automatic Break Deduction (Minutes)</label>
+                        <input type="number" id="settings-break-mins" required min="0" class="w-full px-3 py-2 border rounded-lg">
+                        <p class="text-xs text-gray-500 mt-1">Deducted if shift > 6 hours. Set to 0 to disable.</p>
                     </div>
 
                     <div class="flex justify-end space-x-3 mt-6">
@@ -297,24 +299,23 @@
         </div>
     </div>
 
-    <!-- Modal: Edit Time Log / Add Log (Re-using structure from original, adapting IDs) -->
+    <!-- Modal: Edit Time Log / Add Log -->
     <div id="log-modal" class="modal-overlay fixed inset-0 flex items-center justify-center p-4 hidden">
         <div class="card p-6 w-full max-w-md">
-            <!-- ID updated to match adminCrud.js logic -->
             <h2 id="log-title" class="text-2xl font-bold mb-4">Edit Time Entry</h2>
             <form id="log-edit-form" onsubmit="event.preventDefault(); handleLogSave(event);">
                 <input type="hidden" id="log-id">
                 <div class="space-y-4">
                     <div id="log-employee-group">
                         <label for="log-employee-select" class="block text-sm font-medium text-gray-700 mb-1">Employee</label>
-                        <!-- Updated to use a SELECT dropdown as expected by adminCrud.js when ADDING a new log -->
-                        <select id="log-employee-select" required class="w-full px-3 py-2 border rounded-lg bg-white"></select>
+                        <select id="log-employee-select" required class="w-full px-3 py-2 border rounded-lg">
+                            <!-- Options populated by adminCrud.js -->
+                        </select>
                     </div>
                     
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label for="log-datetime" class="block text-sm font-medium text-gray-700 mb-1">Date & Time</label>
-                            <!-- ID updated to match adminCrud.js logic -->
                             <input type="datetime-local" id="log-datetime" required step="1" class="w-full px-3 py-2 border rounded-lg">
                         </div>
                         <div>
@@ -326,16 +327,9 @@
                         </div>
                     </div>
                     
-                    <!-- Photo Status (Photo feature is removed, so we keep this minimal) -->
-                    <div id="log-photo-status-display" class="flex justify-between items-center pt-2 hidden">
-                        <span class="text-sm font-medium text-gray-700">Photo: <span id="log-photo-status" class="font-bold">N/A</span></span>
-                        <button type="button" id="log-photo-btn" class="btn-secondary px-3 py-1 rounded-lg text-xs hidden">View Photo</button>
-                    </div>
-
-                    <div class="flex justify-between space-x-3 mt-6">
-                        <!-- Corrected onclick to read the hidden ID field for deletion when the modal is open -->
-                        <button type="button" id="delete-log-btn" class="btn-danger px-4 py-2 rounded-lg" onclick="handleLogDelete(document.getElementById('log-id').value)">Delete Entry</button>
-                        <div class="space-x-3">
+                    <div class="flex justify-between space-x-3 pt-4 border-t border-gray-200">
+                        <button type="button" id="delete-log-btn" class="btn-danger px-4 py-2 rounded-lg hidden" onclick="handleLogDelete(document.getElementById('log-id').value)">Delete Entry</button>
+                        <div class="space-x-3 ml-auto">
                             <button type="button" onclick="closeLogModal()" class="btn-secondary px-4 py-2 rounded-lg">Cancel</button>
                             <button type="submit" class="btn-primary px-4 py-2 rounded-lg">Save Changes</button>
                         </div>
@@ -345,18 +339,16 @@
         </div>
     </div>
 
-    <!-- Modal: View Photo -->
-    <!-- Keeping this modal, although the photo logic is disabled in JS -->
+    <!-- Modal: View Photo (Kept for completeness, though photo logic is removed) -->
     <div id="photo-modal" class="modal-overlay fixed inset-0 flex items-center justify-center p-4 hidden">
         <div class="card p-6 w-full max-w-md">
             <h2 class="text-2xl font-bold mb-4">Clock-in Photo</h2>
-            <!-- Placeholder image source since photo uploads are disabled -->
-            <img id="modal-photo" src="https://placehold.co/400x300/e0e0e0/555555?text=Photo+N/A" alt="Clock-in Photo" class="w-full h-auto rounded-lg mb-4 border border-gray-300">
+            <img id="modal-photo" src="" alt="Clock-in Photo" class="w-full h-auto rounded-lg mb-4 border border-gray-300">
             <button onclick="closePhotoModal()" class="w-full btn-primary px-4 py-2 rounded-lg">Close</button>
         </div>
     </div>
 
-    <!-- Main JavaScript Entry Point (Corrected link to main.js) -->
+    <!-- Main JavaScript Entry Point -->
     <script type="module" src="./main.js"></script>
 </body>
 </html>

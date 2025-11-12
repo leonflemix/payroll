@@ -13,7 +13,7 @@ import {
     generatePayrollReport,
     applyFilters // <--- Keeping the import here for the global scope attachment
 } from './adminCrud.js';
-import { formatTimestamp, formatTotalHours } from './utils.js';
+import { formatTimestamp, formatTotalHours, formatTime } from './utils.js'; // Added formatTime
 
 /*
 |--------------------------------------------------------------------------
@@ -263,18 +263,23 @@ export function renderTimeLogList() {
 
     tableBody.innerHTML = filteredLogs.map(log => {
         const employee = state.allEmployees[log.employeeUid] || { name: 'Unknown', email: 'N/A' };
-        // const hasPhoto = !!log.photo; // REMOVED PHOTO LOGIC
+        
+        // Extract date and time for separate columns
+        const date = log.timestamp.toDate();
+        const formattedDate = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        const formattedTime = formatTime(date); // Format time (e.g., 9:00 AM)
+
 
         return `
             <tr class="border-b hover:bg-gray-50">
                 <td class="px-6 py-3 font-medium text-gray-900">${employee.name}</td>
-                <td class="px-6 py-3 text-sm">${formatTimestamp(log.timestamp)}</td>
+                <td class="px-6 py-3 text-sm">${formattedDate}</td>
+                <td class="px-6 py-3 text-sm">${formattedTime}</td>
                 <td class="px-6 py-3">
                     <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${log.type === 'in' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
                         ${log.type.toUpperCase()}
                     </span>
                 </td>
-                <!-- REMOVED PHOTO TD COLUMN -->
                 <td class="px-6 py-3 whitespace-nowrap text-right text-sm font-medium">
                     <button onclick="toggleLogModal('${log.id}')" class="text-indigo-600 hover:text-indigo-900 mr-3">Edit</button>
                     <button onclick="handleLogDelete('${log.id}')" class="text-red-600 hover:text-red-900">Delete</button>
@@ -283,9 +288,9 @@ export function renderTimeLogList() {
         `;
     }).join('');
 
-    // Adjusted colspan from 5 to 4 due to removed Photo column
+    // Adjusted colspan to 5 to match the current table width (Employee, Date, Time, Type, Actions)
     if (filteredLogs.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="4" class="py-4 text-center text-gray-500">No time logs found for the current filters.</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-gray-500">No time logs found for the current filters.</td></tr>';
     }
 }
 
