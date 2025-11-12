@@ -399,6 +399,31 @@ export async function handleLogSave(event) {
     }
 }
 
+/**
+ * Deletes a time log entry.
+ * @param {string} logId - The ID of the log entry to delete.
+ */
+export async function handleLogDelete(logId) {
+    const log = state.allLogs.find(l => l.id === logId);
+    if (!log) {
+        setAuthMessage("Error: Log record not found.", true);
+        return;
+    }
+
+    try {
+        const logRef = doc(state.db, state.timecards_logs_path, logId);
+        await deleteDoc(logRef);
+
+        await writeAuditLog('DELETE_LOG', `Deleted log: ${log.type} at ${formatTimestamp(log.timestamp)}`, log.employeeUid, JSON.stringify(log));
+        
+        await updateEmployeeStatusAfterLogEdit(log.employeeUid);
+        setAuthMessage("Time log deleted.", false);
+    } catch (error) {
+        console.error("Error deleting log:", error);
+        setAuthMessage(`Failed to delete log: ${error.message}`, true);
+    }
+}
+
 /*
 |--------------------------------------------------------------------------
 | 3. PAYROLL REPORTING
